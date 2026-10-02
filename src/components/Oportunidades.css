@@ -1,0 +1,20 @@
+.contact-deals { margin-bottom: 16px; padding: 22px 24px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); }
+.contact-deals-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; flex-wrap: wrap; }
+.contact-deals-heading h2 { margin: 0; }
+.contact-deals-heading p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+.contact-deals-heading button { padding: 9px 13px; border: 0; border-radius: 8px; background: var(--action); color: var(--on-action); font-weight: 700; }
+.contact-deals-groups { display: grid; gap: 18px; margin-top: 22px; }
+.contact-deals-groups h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 9px; color: var(--muted); font-size: 13px; }
+.contact-deals-groups h3 span { min-width: 23px; padding: 1px 6px; border: 1px solid var(--border); border-radius: 999px; text-align: center; }
+.contact-deal { display: flex; align-items: center; gap: 14px; padding: 12px 14px; margin-top: 7px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface-subtle); }
+.contact-deal-main { display: flex; flex: 1; min-width: 0; align-items: center; gap: 8px; flex-wrap: wrap; }
+.contact-deal-main > strong { min-width: 160px; overflow-wrap: anywhere; }
+.contact-deal-main small { flex-basis: 100%; color: var(--muted); }
+.contact-deal-status { padding: 3px 8px; border-radius: 999px; background: var(--info-soft); color: var(--info); font-size: 11px; font-weight: 700; white-space: nowrap; }
+.contact-deal-status.is-won { background: var(--success-soft); color: var(--success); }
+.contact-deal-status.is-lost { background: var(--danger-soft); color: var(--danger); }
+.contact-deal-value { white-space: nowrap; }
+.contact-deal-actions { display: flex; align-items: center; gap: 10px; }
+.contact-deal-actions button, .contact-deal-actions a { padding: 7px 10px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); color: var(--accent); font-size: 12px; font-weight: 600; text-decoration: none; white-space: nowrap; }
+.contact-deals-empty { padding: 14px; margin: 0; border: 1px dashed var(--border); border-radius: 8px; color: var(--muted); font-size: 13px; }
+@media (max-width: 700px) { .contact-deals { padding: 18px; } .contact-deal { flex-wrap: wrap; } .contact-deal-main { flex-basis: 100%; } .contact-deal-actions { margin-left: auto; } }

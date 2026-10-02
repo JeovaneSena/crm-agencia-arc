@@ -1,0 +1,39 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Environment variables — never commit these
+.env
+.env.local
+.env.*.local
+*.env.agente.local.save
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# CLI do Supabase (lixo de execucao)
+supabase/.temp
+
+# Permissões locais do Claude Code (só desta máquina)
+.claude/settings.local.json
+
+# Legado do Arc CRM: só local, não vai para o repositório público
+legacy/
