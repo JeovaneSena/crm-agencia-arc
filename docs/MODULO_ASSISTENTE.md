@@ -47,7 +47,7 @@ conversas. Sem a chave, cada tentativa aparece na tela como "erro (confira a cha
   direto no celular, a IA **não** sabe; a trava de 12 h só enxerga o que sai pelo CRM. Use
   "Assumir conversa" ou desligue o assistente na conversa antes de falar pelo celular.
 - Não há fila de suporte, revisão assistida de melhorias nem token de API para agente
-  externo: as telas e libs herdadas estão em `legacy/src` (dependem de tabelas legadas).
+  externo: as telas e libs herdadas dependiam de tabelas legadas e ficaram fora da base.
   O encaminhamento daqui é simples: aviso na conversa + filtro "Equipe" na lista.
 - Agendar pela IA não existe; só sugere horários livres (`agenda_horarios_disponiveis`).
 

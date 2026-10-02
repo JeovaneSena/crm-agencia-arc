@@ -1,7 +1,7 @@
 # CRM base
 
-Este projeto é uma base para novas instalações, isolada de `/root/arc-crm`.
-Nunca use credenciais, domínio, dados, projeto Supabase ou conta WhatsApp da ARC nesta pasta.
+Este projeto é a base mestre para novas instalações de CRM, isolada de qualquer cliente.
+Nunca use credenciais, domínio, dados, projeto Supabase ou conta WhatsApp de um cliente nesta pasta.
 
 O código herdado ainda contém regras de agência e de clínica. Até concluir a base
 genérica e validar uma instalação vazia, não execute `scripts/database.mjs`,

@@ -64,7 +64,7 @@ regras muito específicos ficam em módulos por nicho, sem mudar o núcleo.
    (migração 0009 + checagem, lógica com 8 travas e 17 testes em `_shared/assistente*.ts`, gancho
    `gancho.ts` ↔ `gancho_assistente.ts` trocado pelo gerador, tela `/assistente-ia`, encaminhamento
    à equipe na lista de conversas, `test:ui:assistente`; ver `docs/MODULO_ASSISTENTE.md`). Suporte,
-   melhorias e token de API herdados foram para `legacy/src`. Tela e lógica testadas; a 0009 AINDA NÃO
+   melhorias e token de API herdados ficaram fora da base pública. Tela e lógica testadas; a 0009 AINDA NÃO
    foi ensaiada num projeto real, nem o modelo/uazapi. O módulo **campanhas** foi
    implementado (migração 0010, função Meta, fila, webhook, trabalhador e telas). A
    migração passou no ensaio local; faltam ensaio num Supabase real e envio pela Meta.
@@ -80,7 +80,7 @@ regras muito específicos ficam em módulos por nicho, sem mudar o núcleo.
    se achar algo, apaga a pasta e falha. `scripts/auth-config.mjs` (`npm run auth:config|auth:aplicar`)
    fecha o cadastro público do Auth, define site_url e senha 10+; ainda não exercitado contra a
    API real (só validado localmente). Testado: instalação só-núcleo e núcleo+conversas passam
-   tsc, lint, build e testes de função. `live-check.mjs` (ARC) foi para `legacy/scripts`.
+   tsc, lint, build e testes de função. `live-check.mjs` (específico do CRM de origem) ficou fora da base pública.
    Texto original: criar comando que copie apenas arquivos
    autorizados, aplique nome técnico e crie exemplos de configuração. O comando
    falha se encontrar credenciais, refs ou URLs da ARC.

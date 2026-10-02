@@ -18,8 +18,7 @@ não aparecem.
 ## Função (`supabase/functions/whatsapp`)
 Rotas: webhook (`POST /`), `/enviar`, `/conexao`, `/conexao/conectar|desconectar`,
 `/foto`, `/apagar-pessoa` (só gestor). Secrets: `WEBHOOK_SEGREDO`, `UAZAPI_API_URL`,
-`UAZAPI_TOKEN`. A versão completa antiga (agente, Meta, suporte) está em
-`legacy/functions/whatsapp-index.legacy.ts`, só como referência.
+`UAZAPI_TOKEN`.
 
 ## Testes
 `npm run test:conversas` (função, sem rede) · `npm run test:ui:conversas` (telas) ·

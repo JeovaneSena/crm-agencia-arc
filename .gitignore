@@ -35,5 +35,5 @@ supabase/.temp
 # Permissões locais do Claude Code (só desta máquina)
 .claude/settings.local.json
 
-# Legado do Arc CRM: só local, não vai para o repositório público
+# Legado do CRM de origem: só local, não vai para o repositório público
 legacy/

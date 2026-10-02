@@ -10,3 +10,5 @@ Este é o processo para uma instalação gerada pelo CRM Base. O README dentro d
 6. **Convide e teste o gestor.** Verifique login, papéis e RLS com uma segunda conta, contatos, oportunidade, funil, agenda e módulos ligados. Para WhatsApp, Meta ou IA, teste conexão e mensagens reais antes de ativar automações. Registre a revisão da base (`base_revisao` em `instalacao.json`) junto ao resultado.
 
 Para publicar a **base mestre** no GitHub, rode `npm run preflight`, `npm run test:db:local`, `npm run build` e `npm run lint`, confira `git status` e faça revisão dos arquivos rastreados. Mantenha o repositório como base em validação até duas instalações vazias passarem por todo o processo. Publique cada cliente em um repositório separado e sem `.env`, tokens, dumps ou dados de produção.
+
+Para um roteiro iniciante, com pré-requisitos e contas necessárias, veja [COMECANDO.md](COMECANDO.md).

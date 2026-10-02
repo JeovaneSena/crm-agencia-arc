@@ -3,7 +3,7 @@
 // rede nem lê credenciais; falha (e apaga a pasta) se a varredura achar algo
 // da ARC ou de outro cliente.
 //
-//   node scripts/gerar-instalacao.mjs /root/clientes/acme --slug acme --nome "Acme Ltda" \
+//   node scripts/gerar-instalacao.mjs ../clientes/acme --slug acme --nome "Acme Ltda" \
 //        --dominio crm.acme.com.br [--modulos conversas] [--fuso America/Sao_Paulo] [--sem-git]
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join, relative, resolve, sep } from 'node:path'
