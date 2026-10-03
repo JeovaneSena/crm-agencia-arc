@@ -7,7 +7,7 @@ Data: 03/10/2026. Referência: repositório público `melgarafael/DeskcommCRM`, 
 
 - **Fase 0 (fechar a base): deixada de fora por decisão do dono, em 03/10/2026.** As migrações 0008 a 0010
   seguem sem ensaio num banco real; toda função nova abaixo herda essa pendência.
-- **Fase 1 (fundação viva): feita em 03/10/2026, sem commit.** Ensaiada em Postgres local (PGlite), testes
+- **Fase 1 (fundação viva): feita e publicada em 03/10/2026.** Ensaiada em Postgres local (PGlite), testes
   Deno, testes de tela e uma instalação gerada com todos os módulos. **Nada foi aplicado em Supabase real.**
   - Central de avisos (0011): `docs/CENTRAL_DE_AVISOS.md`.
   - Regra única de opt-out em dois níveis (`_shared/optout.ts`), usada pelo assistente (trava 9) e pelas campanhas.
@@ -22,7 +22,7 @@ Data: 03/10/2026. Referência: repositório público `melgarafael/DeskcommCRM`, 
   - Fora da fase 1, ficou: "log de webhook" e "filas" da retenção (a base não tem log de webhook; as
     filas de campanha e de resposta são pequenas).
 
-- **Fase 2 (atendimento do dia a dia): feita em 03/10/2026, sem commit.** Mesmos testes da fase 1 (PGlite, Deno, telas
+- **Fase 2 (atendimento do dia a dia): feita e publicada em 03/10/2026.** Mesmos testes da fase 1 (PGlite, Deno, telas
   com mocks, instalação gerada com todos os módulos). **Nada foi aplicado em Supabase real.**
   - Conversas: respostas rápidas (0013), notas internas (0014), assumir/transferir/devolver atômico com histórico e
     "só o dono escreve" (0015), adiar conversa (0016), anexos, rascunho da IA.
