@@ -9,7 +9,7 @@
  * mais velho. Quem lê do banco é o componente. Ideia adaptada do DeskcommCRM (MIT,
  * © 2026 Rafael Melgaço): timeline única do contato.
  */
-export type TipoDeEvento = 'contato' | 'oportunidade' | 'reuniao' | 'aviso' | 'mensagem'
+export type TipoDeEvento = 'contato' | 'oportunidade' | 'reuniao' | 'aviso' | 'mensagem' | 'nota' | 'conversa'
 
 export interface EventoDoTempo {
   id: string
@@ -24,11 +24,17 @@ export interface EventoDeOportunidade { id: string; status_anterior: string | nu
 export interface ReuniaoDoTempo { id: string; assunto: string; data_reuniao: string; status: 'agendada' | 'realizada' | 'cancelada' | 'faltou'; created_at: string; updated_at: string; cancelado_em: string | null; motivo_cancelamento: string | null }
 export interface AvisoDoTempo { id: string; titulo: string; detalhe: string | null; criado_em: string; resolvido_em: string | null; resolucao: 'manual' | 'automatica' | null }
 
+export interface NotaDoTempo { id: string; texto: string; created_at: string; autor_nome: string | null }
+export interface EventoDeConversa { id: string; tipo: 'assumiu' | 'transferiu' | 'devolveu'; created_at: string; por_nome: string | null; para_nome: string | null }
+
 export interface EntradaDaLinha {
   contato: { id: string; created_at: string }
   eventos: EventoDeOportunidade[]
   reunioes: ReuniaoDoTempo[]
   avisos: AvisoDoTempo[]
+  /** Só instalações com o módulo conversas. */
+  notas?: NotaDoTempo[]
+  conversaEventos?: EventoDeConversa[]
   /** Última mensagem do cliente (só instalações com o módulo conversas). */
   ultimaMensagem?: string | null
   rotuloEtapa: (chave: string) => string
@@ -67,6 +73,18 @@ export function montarLinhaDoTempo(e: EntradaDaLinha): EventoDoTempo[] {
   for (const a of e.avisos) {
     add({ id: `aviso-${a.id}`, quando: a.criado_em, tipo: 'aviso', titulo: `Aviso: ${a.titulo}`, detalhe: a.detalhe ?? undefined })
     if (valido(a.resolvido_em)) add({ id: `aviso-${a.id}-fim`, quando: a.resolvido_em, tipo: 'aviso', titulo: `Aviso ${a.resolucao === 'automatica' ? 'resolvido sozinho' : 'dispensado'}: ${a.titulo}` })
+  }
+
+  for (const n of e.notas ?? []) {
+    const texto = n.texto.trim().replace(/\s+/g, ' ')
+    add({ id: `nota-${n.id}`, quando: n.created_at, tipo: 'nota', titulo: `Nota interna${n.autor_nome ? ` de ${n.autor_nome}` : ''}`, detalhe: texto.length > 160 ? `${texto.slice(0, 159)}…` : texto })
+  }
+  for (const c of e.conversaEventos ?? []) {
+    const quem = c.por_nome ?? 'Alguém da equipe'
+    const titulo = c.tipo === 'assumiu' ? `${quem} assumiu a conversa`
+      : c.tipo === 'devolveu' ? `${quem} devolveu a conversa`
+      : c.para_nome && c.para_nome !== quem ? `${quem} passou a conversa para ${c.para_nome}` : `${quem} assumiu a conversa`
+    add({ id: `conversa-${c.id}`, quando: c.created_at, tipo: 'conversa', titulo })
   }
 
   // Mais novo primeiro; em empate, a ordem em que entraram (o id desempata, para não tremer entre renderizações).

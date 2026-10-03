@@ -41,6 +41,11 @@ const destinatarios = [
  {id:'d3',contato_id:'c3',whatsapp:'5511977777777',nome:'Pedro',valores:{},apto:false,motivo_exclusao:'pediu_para_parar',estado:'excluido',erro:null,tentativas:0}]
 let consentimentoRegistrado=false
 let retencao=null
+let dono=null
+let adiada=null
+const abertasMock=[{...opportunity,id:'opp-a',nome:'Site institucional',status:'proposta',valor_proposta:5000,servicos_contratados:['Serviço A'],fechado_em:null,responsavel_id:'00000000-0000-4000-8000-000000000001',contato:{nome:'Contato de teste',empresa:'Empresa Teste',whatsapp:'5511999999999'}},{...opportunity,id:'opp-b',nome:'Tráfego pago',status:'negociacao',valor_proposta:2000,servicos_contratados:[],fechado_em:null,responsavel_id:null,contato:{nome:'Contato de teste',empresa:'Empresa Teste',whatsapp:'5511999999999'}}]
+const ETQ=[{id:'e1',nome:'Quente',cor:'danger'},{id:'e2',nome:'Indicação',cor:'info'}]
+let paresEtq=[{contato_id:'00000000-0000-4000-8000-000000000002',etiqueta_id:'e1'}]
 let avisos=[{id:'av1',tipo:'conexao_caida',gravidade:'critico',titulo:'WhatsApp desconectado',detalhe:'Reconecte o número para voltar a receber mensagens.',rota:'/configuracoes',contato_id:null,somente_gestor:true,ocorrencias:3,criado_em:new Date().toISOString(),ultima_em:new Date().toISOString(),resolvido_em:null,resolucao:null},{id:'av2',tipo:'mensagem_presa',gravidade:'atencao',titulo:'Uma mensagem não saiu',detalhe:null,rota:'https://externo.example/phishing',contato_id:'00000000-0000-4000-8000-000000000002',somente_gestor:false,ocorrencias:1,criado_em:new Date().toISOString(),ultima_em:new Date().toISOString(),resolvido_em:null,resolucao:null}]
 const browser = await chromium.launch({headless:true,args:['--no-sandbox']})
 const context = await browser.newContext({viewport:{width:1440,height:1000}})
@@ -49,8 +54,8 @@ const page = await context.newPage()
 page.on('pageerror',e=>errors.push(e.message))
 const dias = Array.from({length:7},(_,i)=>i)
 const tabelas = {
- avisos:()=>avisos.filter(a=>!a.resolvido_em), contatos:()=>[lead], reunioes:()=>[meeting], profissionais:()=>[professional], catalogo_servicos:()=>services,
- oportunidades:()=>[opportunity], etapas_funil:()=>[], horario_comercial:()=>[],
+ avisos:()=>avisos.filter(a=>!a.resolvido_em), etiquetas:()=>ETQ, contato_etiquetas:()=>paresEtq, contatos:()=>[lead], reunioes:()=>[meeting], profissionais:()=>[professional], catalogo_servicos:()=>services,
+ oportunidades:()=>[opportunity,...abertasMock], etapas_funil:()=>[], horario_comercial:()=>[],
  profissional_horarios:()=>dias.map(d=>({id:`h${d}`,profissional_id:professional.id,dia_semana:d,hora_inicio:'08:00',hora_fim:'18:00',ativo:true})),
  projetos:()=>[{id:'proj-1',contato_id:lead.id,oportunidade_id:opportunity.id,nome:'Projeto da venda inicial',etapa:'planejamento',prazo:null,escopo:'Escopo inicial',responsavel_id:null,created_at:now,updated_at:now,cliente:{nome:lead.nome,empresa:lead.empresa,status:lead.status},oportunidade:{nome:opportunity.nome,status:'ganho',cancelado_em:null}}],
  campanhas_lista:()=>[campanhaLinha], campanhas:()=>[campanhaCompleta], campanha_destinatarios:()=>destinatarios, campanha_eventos:()=>[{id:'ev1',tipo:'publico_congelado',descricao:'Público congelado para revisão.',criado_em:now}],
@@ -58,11 +63,14 @@ const tabelas = {
  marketing_consentimentos:()=>consentimentoRegistrado?[{contato_id:lead.id,ativo:true,consentido_em:now,revogado_em:null,fonte:'pediu pelo WhatsApp'}]:[],
  assistente_config:()=>[{id:true,modo:'desligada',nome:'Assistente',modelo:'claude-sonnet-5-5',instrucoes:null,numeros_teste:[],max_respostas:12,espera_segundos:6,updated_by:null,updated_at:now}],
  assistente_respostas:()=>[{mensagem_id:'r1',contato_id:lead.id,estado:'ignorada',motivo:'ia_desligada',created_at:now},{mensagem_id:'r2',contato_id:lead.id,estado:'falhou',motivo:'erro_interno',created_at:now}],
+ conversa_eventos:()=>[{id:'ce1',contato_id:lead.id,tipo:'transferiu',de_usuario:user.id,para_usuario:'00000000-0000-4000-8000-0000000000aa',por_usuario:user.id,created_at:now}],
+ notas_conversa:()=>[{id:'n1',contato_id:lead.id,texto:'Cliente prefere falar às terças.',autor_id:user.id,created_at:now,autor:{nome:'Equipe Teste'}}],
+ respostas_rapidas:()=>[{id:'rr1',titulo:'Saudação',texto:'Oi, {{primeiro_nome}}! Como posso ajudar?',atalho:'oi',dono_id:null},{id:'rr2',titulo:'Com campo solto',texto:'Veja a proposta da {{empresa}}.',atalho:'solto',dono_id:'00000000-0000-4000-8000-000000000001'}],
  conversas_config:()=>[{id:true,provedor:'uazapi',retencao_midia_dias:retencao}],
- conversas_lista:()=>[{contato_id:lead.id,nome:lead.nome,whatsapp:lead.whatsapp,status:'novo_lead',assumida:false,assumido_por:null,assumido_em:null,assumido_por_nome:null,ultimo_conteudo:'Quero saber mais',ultimo_tipo:'texto',ultimo_autor:'cliente',ultima_em:now,nao_lidas:1,proxima_reuniao:null,...(comAssistente?{ia_ligada:false,ia_encaminhada_em:now,ia_resumo:'Quer fechar a proposta hoje'}:{})}],
+ conversas_lista:()=>[{contato_id:lead.id,nome:lead.nome,whatsapp:lead.whatsapp,status:'novo_lead',assumida:!!dono,assumido_por:dono?.id??null,assumido_em:dono?now:null,assumido_por_nome:dono?.nome??null,ultimo_conteudo:'Quero saber mais',ultimo_tipo:'texto',ultimo_autor:'cliente',ultima_em:now,nao_lidas:1,proxima_reuniao:null,...(comAssistente?{ia_ligada:false,ia_encaminhada_em:now,ia_resumo:'Quer fechar a proposta hoje'}:{})}],
  mensagens_whatsapp:()=>[{id:'m1',contato_id:lead.id,autor:'cliente',tipo:'texto',conteudo:'Quero saber mais',midia_url:null,id_externo:'e1',provedor:'uazapi',lida:false,criada_em:now},{id:'m2',contato_id:lead.id,autor:'atendente',tipo:'texto',conteudo:'Claro, como posso ajudar?',midia_url:null,id_externo:'e2',provedor:'uazapi',estado_envio:'enviado',lida:true,criada_em:now},{id:'m3',contato_id:lead.id,autor:'cliente',tipo:'imagem',conteudo:null,midia_url:null,midia_removida_em:now,id_externo:'e3',provedor:'uazapi',lida:true,criada_em:now}],
- profissional_bloqueios:()=>[], oportunidade_eventos:()=>[{id:'ev1',status_anterior:'qualificacao',status_novo:'proposta',motivo:'Pediu orçamento',created_at:now,oportunidades:{nome:'Venda inicial',contato_id:lead.id}},{id:'ev2',status_anterior:null,status_novo:'novo_lead',motivo:null,created_at:now,oportunidades:{nome:'Negócio de OUTRA pessoa',contato_id:'outro-contato'}}], contatos_dados:()=>[],
- usuarios:()=>[{...user,nome:'Equipe Teste',papel,ativo:true,avatar_url:null,profissional_id:null,convidado_em:null,ultimo_acesso_em:null}],
+ profissional_bloqueios:()=>[], oportunidade_eventos:()=>[{id:'ev1',status_anterior:'qualificacao',status_novo:'proposta',motivo:'Pediu orçamento',created_at:now,oportunidades:{nome:'Venda inicial',contato_id:lead.id}},{id:'ev2',status_anterior:null,status_novo:'novo_lead',motivo:null,created_at:now,oportunidades:{nome:'Negócio de OUTRA pessoa',contato_id:'outro-contato'}}], contatos_dados:()=>adiada?[{id:lead.id,adiada_ate:adiada}]:[],
+ usuarios:()=>[{...user,nome:'Equipe Teste',papel,ativo:true,avatar_url:null,profissional_id:null,convidado_em:null,ultimo_acesso_em:null},{id:'00000000-0000-4000-8000-0000000000aa',nome:'Colega',papel:'consultor',ativo:true,avatar_url:null,profissional_id:null,convidado_em:null,ultimo_acesso_em:null}],
  configuracoes_negocio:()=>[{id:'config',nome_negocio:'Empresa Teste',logo_url:null,fuso_horario:'America/Sao_Paulo'}],
  resumo_periodo:()=>[{novos_contatos:1,reunioes_agendadas:1,vendas_ganhas:1,conversao:100,valor_fechado:1250,em_negociacao:0}],
  dashboard_por_dia:()=>dias.map(i=>({dia:new Date(Date.now()-(6-i)*86400000).toISOString().slice(0,10),atendimentos:3+i,agendamentos:i%3})),
@@ -79,6 +87,7 @@ await context.route('**/*',async route=>{
  if(url.pathname.includes('/auth/')) data=user
  else if(url.pathname.endsWith('/functions/v1/whatsapp/conexao')) data={ok:true,provedor:'uazapi',estado:'conectado',numero:'5511900000000',perfil:'Empresa Teste',foto:null,servidor:null,instancia:null,chaveFinal:null,webhook:'apontado'}
  else if(url.pathname.endsWith('/functions/v1/campanhas/modelos')) data={ok:true,modelos:[{id:'m1',nome:'promo_outubro',idioma:'pt_BR',status:'APPROVED',categoria:'MARKETING',qualidade:'GREEN',compativel:true,motivo:null,campos:[{tipo:'body',quantidade:2,texto:'Olá {{1}}, {{2}}'}]},{id:'m2',nome:'modelo_reprovado',idioma:'pt_BR',status:'REJECTED',categoria:'MARKETING',qualidade:null,compativel:false,motivo:'Modelo rejected; aguarde aprovação na Meta.',campos:[]}]}
+ else if(url.pathname.endsWith('/functions/v1/campanhas/modelos/todos')) data={ok:true,modelos:[{id:'m1',nome:'promo_outubro',idioma:'pt_BR',status:'APPROVED',categoria:'MARKETING',qualidade:'GREEN',motivo:null,corpo:'Olá {{1}}, temos novidades.',rodape:null,botoes:['Quero ver']},{id:'m2',nome:'aviso_reuniao',idioma:'pt_BR',status:'REJECTED',categoria:'UTILITY',qualidade:null,motivo:'INCORRECT_CATEGORY',corpo:'Sua reunião é amanhã.',rodape:null,botoes:[]}]}
  else if(url.pathname.endsWith('/functions/v1/campanhas/conta')) data={ok:true,configurada:true,numero:'+55 11 90000-0000',nome:'Empresa Teste',qualidade:'GREEN',limite:'TIER_250'}
  else if(url.pathname.endsWith('/functions/v1/whatsapp/foto')) data={ok:true,url:null}
  else if(url.pathname.includes('/functions/v1/equipe')) data={ok:true,usuarios:[
@@ -128,7 +137,64 @@ try {
  assert(tempo.includes('Reunião marcada: Reunião inicial'),'linha do tempo sem a reunião')
  assert(tempo.includes('Aviso: Uma mensagem não saiu'),'linha do tempo sem o aviso do contato')
  assert(!tempo.includes('OUTRA pessoa'),'a linha do tempo mostrou evento de outro contato')
+ if(comConversas) assert(tempo.includes('Nota interna de Equipe Teste')&&tempo.includes('Cliente prefere falar às terças.')&&tempo.includes('Equipe Teste passou a conversa para Colega'),'a linha do tempo sem a nota interna e a passagem da conversa')
+ else assert(!tempo.includes('Nota interna'),'nota interna apareceu sem o módulo conversas')
  console.log('PASS linha do tempo do contato')
+ // Etiquetas: marcar na ficha (criando se for nova), filtrar a lista e a gestão (renomear, juntar) só do gestor.
+ let criada=null, marcada=null, renomeada=null, juntou=null
+ await context.route('**/rest/v1/etiquetas*',async r=>{const m=r.request().method()
+  if(m==='POST'){criada=r.request().postDataJSON();return r.fulfill({status:201,contentType:'application/json',body:JSON.stringify({id:'e3',nome:criada.nome,cor:criada.cor})})}
+  if(m==='PATCH'){renomeada=r.request().postDataJSON();return r.fulfill({status:200,contentType:'application/json',body:'[{"id":"e1"}]'})}
+  return r.fallback()})
+ await context.route('**/rest/v1/contato_etiquetas*',async r=>{if(r.request().method()!=='POST')return r.fallback();marcada=r.request().postDataJSON();paresEtq=[...paresEtq,{contato_id:marcada.contato_id,etiqueta_id:marcada.etiqueta_id}];await r.fulfill({status:201,contentType:'application/json',body:'[]'})})
+ await context.route('**/rest/v1/rpc/etiqueta_juntar',async r=>{juntou=r.request().postDataJSON();await r.fulfill({status:200,contentType:'application/json',body:'1'})})
+ await page.goto(base+`/leads/${lead.id}`)
+ await page.getByLabel('Etiquetas do contato').getByText('Quente').waitFor()
+ await page.getByLabel('Nova etiqueta').fill('  Tráfego   pago '); await page.keyboard.press('Enter'); await page.waitForTimeout(500)
+ assert.deepEqual(criada,{nome:'Tráfego pago',cor:'accent'},'etiqueta nova não foi criada com o nome normalizado')
+ assert.deepEqual(marcada,{contato_id:lead.id,etiqueta_id:'e3'},'a etiqueta nova não foi marcada no contato')
+ await page.getByLabel('Nova etiqueta').fill('indicação'); await page.keyboard.press('Enter'); await page.waitForTimeout(500)
+ assert.equal(marcada.etiqueta_id,'e2','nome existente (sem caixa/acento igual) deveria marcar a existente, não criar')
+ await page.goto(base+'/clientes')
+ await page.getByLabel('Filtrar por etiqueta').selectOption({label:'Indicação'})
+ await page.getByText('Contato de teste').first().waitFor()
+ await page.getByLabel('Filtrar por etiqueta').selectOption({label:'Quente'}); await page.getByText('Contato de teste').first().waitFor()
+ await page.goto(base+'/configuracoes'); await page.getByRole('button',{name:'Etiquetas'}).click()
+ await page.getByLabel('Nome da etiqueta Quente').fill('Muito quente'); await page.getByRole('button',{name:'Salvar nome'}).first().click(); await page.waitForTimeout(400)
+ assert.deepEqual(renomeada,{nome:'Muito quente'},'renomear não enviou o novo nome')
+ await page.getByRole('button',{name:'Juntar Quente em outra'}).click()
+ await page.getByLabel('Etiqueta de destino').selectOption({label:'Indicação'}); await page.getByRole('button',{name:'Juntar',exact:true}).click(); await page.waitForTimeout(400)
+ assert.deepEqual(juntou,{p_origem:'e1',p_destino:'e2'},'juntar não chamou a função com origem e destino')
+ console.log('PASS etiquetas: marcar, criar, filtrar, renomear e juntar')
+ // CRM: responsável no cartão, filtro "Minhas" e ações em lote (a função do banco é tudo-ou-nada).
+ await page.goto(base+'/crm')
+ await page.getByText('Responsável: Equipe Teste').waitFor(); await page.locator('.crm-deal-owner',{hasText:'Sem responsável'}).first().waitFor()
+ await page.getByLabel('Filtrar por responsável').selectOption({label:'Minhas'})
+ assert.equal(await page.getByText('Tráfego pago').count(),0,'filtro "Minhas" mostrou oportunidade sem dono')
+ await page.getByLabel('Filtrar por responsável').selectOption({label:'Todos os responsáveis'})
+ let lotes=[]
+ await context.route('**/rest/v1/rpc/oportunidades_*_em_lote',async r=>{lotes.push([new URL(r.request().url()).pathname.split('/').pop(),r.request().postDataJSON()]);await r.fulfill({status:200,contentType:'application/json',body:'2'})})
+ await page.getByRole('button',{name:'Selecionar várias'}).click()
+ await page.getByLabel('Selecionar Site institucional').check(); await page.getByLabel('Selecionar Tráfego pago').check()
+ await page.getByLabel('Mover selecionadas para').selectOption({label:'Qualificação'}); await page.getByRole('button',{name:'Mover',exact:true}).click(); await page.waitForTimeout(500)
+ assert.deepEqual(lotes[0],['oportunidades_mover_em_lote',{p_ids:['opp-a','opp-b'],p_status:'qualificacao'}],'mover em lote não chamou a função com os ids e a etapa')
+ await page.getByRole('button',{name:'Selecionar várias'}).click()
+ await page.getByLabel('Selecionar Site institucional').check()
+ await page.getByLabel('Responsável das selecionadas').selectOption({label:'Sem responsável'}); await page.getByRole('button',{name:'Aplicar'}).click(); await page.waitForTimeout(500)
+ assert.deepEqual(lotes[1],['oportunidades_definir_responsavel_em_lote',{p_ids:['opp-a'],p_responsavel:null}],'limpar responsável em lote')
+ console.log('PASS crm: responsável, filtro e ações em lote')
+ // Importar planilha: lê o CSV (; e acentos), mostra o que fica de fora e manda só as linhas prontas ao banco.
+ let importado=null
+ await context.route('**/rest/v1/rpc/contatos_importar',async r=>{importado=r.request().postDataJSON();await r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({criados:2,ja_existiam:0,ignoradas:0})})})
+ await page.goto(base+'/leads')
+ await page.getByRole('button',{name:'Importar planilha'}).click()
+ await page.getByLabel('Arquivo CSV').setInputFiles({name:'lista.csv',mimeType:'text/csv',buffer:Buffer.from('Nome;Telefone;E-mail\r\nAna Souza;(11) 98765-4321;ANA@EXEMPLO.COM\r\nBia;98765;\r\nCaio;21 99999-0000;\r\nAna de novo;11987654321;\r\n','utf8')})
+ await page.getByText('2 contatos prontos para importar.').waitFor()
+ await page.getByText('Ver o que ficou de fora').click(); await page.getByText('Linha 3: telefone sem DDD').waitFor()
+ await page.getByLabel('Etiqueta do lote').fill('Lista outubro'); await page.keyboard.press('Tab')
+ await page.getByRole('button',{name:'Importar 2'}).click(); await page.getByText('2 contatos importados.').waitFor()
+ assert.deepEqual(importado.p_linhas,[{nome:'Ana Souza',whatsapp:'5511987654321',empresa:null,email:'ana@exemplo.com'},{nome:'Caio',whatsapp:'5521999990000',empresa:null,email:null}],'linhas enviadas ao banco')
+ console.log('PASS importar planilha')
  await page.goto(base+'/')
  const desligados=[...(comCampanhas?[]:['Campanhas']),...(comAssistente?[]:['Assistente comercial de IA']),...(comProjetos?[]:['Projetos']),...((comConversas||comAssistente||comCampanhas)?[]:['Conversas'])]
  for(const modulo of desligados)
@@ -149,6 +215,87 @@ try {
   await page.waitForTimeout(500)
   assert(enviado?.contato_id===lead.id&&enviado?.texto==='Mensagem de teste'&&enviado?.pedido_id,'envio não chegou à função com contato_id, texto e pedido_id')
   console.log('PASS conversas: lista, mensagens e envio')
+  // Respostas rápidas: inserir não envia; /atalho + Enter expande; variável sem valor bloqueia o envio.
+  const caixa=page.getByRole('textbox',{name:'Resposta ao contato'})
+  enviado=null
+  await page.getByRole('button',{name:'Respostas rápidas'}).click()
+  await page.getByRole('button',{name:/Saudação/}).click()
+  assert.equal(await caixa.inputValue(),'Oi, Contato! Como posso ajudar?','a resposta não entrou preenchida com o nome do contato')
+  assert.equal(enviado,null,'inserir a resposta enviou a mensagem')
+  await caixa.fill('/oi'); await page.keyboard.press('Enter'); await page.waitForTimeout(300)
+  assert.equal(await caixa.inputValue(),'Oi, Contato! Como posso ajudar?','/oi + Enter não expandiu')
+  assert.equal(enviado,null,'/oi + Enter enviou em vez de expandir')
+  await caixa.fill('/solto'); await page.keyboard.press('Enter'); await page.keyboard.press('Enter'); await page.waitForTimeout(300)
+  assert.equal(enviado,null,'enviou com {{empresa}} sem preencher')
+  assert(await page.getByRole('alert').filter({hasText:'{{empresa}}'}).count()>=1,'sem o aviso da variável pendente')
+  await caixa.fill('')
+  console.log('PASS conversas: respostas rápidas')
+  // Notas internas: aparecem no histórico, são salvas na tabela própria e NUNCA passam pela rota de envio.
+  assert((await page.getByRole('note',{name:'Nota interna'}).innerText()).includes('Cliente prefere falar às terças.'),'a nota existente não apareceu na conversa')
+  let notaSalva=null, enviouAoCliente=false
+  await context.route('**/rest/v1/notas_conversa*',async r=>{if(r.request().method()!=='POST')return r.fallback();notaSalva=r.request().postDataJSON();await r.fulfill({status:201,contentType:'application/json',body:'[]'})})
+  await context.route('**/functions/v1/whatsapp/enviar',async r=>{enviouAoCliente=true;await r.fulfill({status:200,contentType:'application/json',body:'{"ok":true}'})})
+  await page.getByRole('tab',{name:'Nota interna'}).click()
+  await page.getByRole('textbox',{name:'Nota interna'}).fill('Combinar desconto na sexta.')
+  await page.keyboard.press('Enter'); await page.waitForTimeout(400)
+  assert(notaSalva?.contato_id===lead.id&&notaSalva?.texto==='Combinar desconto na sexta.'&&notaSalva?.autor_id===user.id,'a nota não foi gravada com contato, texto e autor')
+  assert.equal(enviouAoCliente,false,'a nota foi enviada ao cliente')
+  console.log('PASS conversas: notas internas')
+  // Assumir é atômico no banco; transferir passa para outra pessoa; conversa de outro só o gestor toma.
+  const COLEGA={id:'00000000-0000-4000-8000-0000000000aa',nome:'Colega'}
+  let chamadasDono=[]
+  await context.route('**/rest/v1/rpc/conversa_*',async r=>{
+    const nome=new URL(r.request().url()).pathname.split('/').pop(), corpo=r.request().postDataJSON(); chamadasDono.push([nome,corpo])
+    if(nome==='conversa_assumir'){ if(corpo.p_forcar||!dono){dono={id:user.id,nome:'Equipe Teste'};return r.fulfill({status:200,contentType:'application/json',body:'true'})} return r.fulfill({status:200,contentType:'application/json',body:'false'}) }
+    if(nome==='conversa_transferir') dono=COLEGA
+    if(nome==='conversa_devolver') dono=null
+    await r.fulfill({status:200,contentType:'application/json',body:''})
+  })
+  await page.reload(); await page.getByText('Contato de teste').first().click()
+  await page.getByRole('button',{name:'Assumir conversa'}).first().click(); await page.waitForTimeout(500)
+  assert.equal(chamadasDono[0][0],'conversa_assumir'); assert.equal(chamadasDono[0][1].p_forcar,false)
+  await page.getByRole('button',{name:'Liberar conversa'}).waitFor()
+  await page.getByLabel('Transferir conversa para').selectOption({label:'Colega'})
+  await page.getByRole('button',{name:'Transferir',exact:true}).click(); await page.waitForTimeout(500)
+  assert.deepEqual(chamadasDono.at(-1),['conversa_transferir',{p_contato:lead.id,p_para:COLEGA.id}])
+  // Agora a conversa é do Colega: o campo de resposta some, a nota interna continua, e o gestor pode tomá-la.
+  await page.reload(); await page.getByText('Contato de teste').first().click()
+  await page.getByText(/Colega.*está cuidando desta conversa/).waitFor()
+  assert.equal(await page.getByRole('textbox',{name:'Resposta ao contato'}).count(),0,'escreveu em conversa de outra pessoa')
+  await page.getByRole('button',{name:'Assumir de Colega'}).first().click(); await page.waitForTimeout(500)
+  assert.equal(chamadasDono.at(-1)[0],'conversa_assumir'); assert.equal(chamadasDono.at(-1)[1].p_forcar,true,'gestor deveria forçar')
+  dono=null
+  console.log('PASS conversas: assumir, transferir e conversa de outra pessoa')
+  // Adiar: sai da fila (e dos contadores), vai para "Adiadas" com a hora de volta, e "voltar agora" devolve.
+  let adiou=[]
+  await context.route('**/rest/v1/rpc/conversa_adiar',async r=>{const c=r.request().postDataJSON();adiou.push(c);adiada=c.p_ate;await r.fulfill({status:200,contentType:'application/json',body:''})})
+  await page.goto(base+'/conversas'); await page.getByText('Contato de teste').first().click()
+  await page.getByLabel('Adiar conversa').selectOption({label:'Daqui a 3 horas'}); await page.waitForTimeout(500)
+  assert.equal(adiou.length,1); const horas=(Date.parse(adiou[0].p_ate)-Date.now())/3_600_000
+  assert(horas>2.9&&horas<3.1,`adiou para ${horas} h em vez de 3`)
+  await page.goto(base+'/conversas')
+  await page.getByRole('button',{name:/^Adiadas/}).waitFor()
+  assert.equal(await page.getByText('Contato de teste').count(),0,'conversa adiada continuou na fila')
+  await page.getByRole('button',{name:/^Adiadas/}).click()
+  await page.getByText(/Volta (hoje|amanhã)/).first().waitFor()
+  await page.getByText('Contato de teste').first().click()
+  await page.getByLabel('Adiar conversa').selectOption({label:'Voltar para a fila agora'}); await page.waitForTimeout(500)
+  assert.equal(adiou.at(-1).p_ate,null,'voltar agora deveria mandar data nula')
+  adiada=null
+  console.log('PASS conversas: adiar e voltar para a fila')
+  // Anexos: recusa cedo o que não serve; envia o escolhido com a legenda; sem texto também pode.
+  const caixaAnexo=page.getByRole('textbox',{name:'Resposta ao contato'})
+  await page.goto(base+'/conversas'); await page.getByText('Contato de teste').first().click(); await caixaAnexo.waitFor()
+  await page.locator('input[type=file][aria-label="Anexar arquivo"]').setInputFiles({name:'virus.exe',mimeType:'application/octet-stream',buffer:Buffer.from('MZ')})
+  await page.getByText(/não é aceito/).waitFor()
+  let anexoEnviado=null
+  await context.route('**/functions/v1/whatsapp/enviar-midia',async r=>{const b=r.request().postDataBuffer().toString('latin1');anexoEnviado={temArquivo:b.includes('filename="proposta.pdf"'),legenda:/name="legenda"\r\n\r\nSegue a proposta\r\n/.test(b),contato:b.includes(lead.id)};await r.fulfill({status:200,contentType:'application/json',body:'{"ok":true}'})})
+  await page.locator('input[type=file][aria-label="Anexar arquivo"]').setInputFiles({name:'proposta.pdf',mimeType:'application/pdf',buffer:Buffer.from('%PDF-1.4 teste')})
+  await page.getByRole('status').filter({hasText:'proposta.pdf'}).waitFor()
+  await caixaAnexo.fill('Segue a proposta'); await page.keyboard.press('Enter'); await page.waitForTimeout(500)
+  assert.deepEqual(anexoEnviado,{temArquivo:true,legenda:true,contato:true},'o anexo não chegou à função com arquivo, legenda e contato')
+  assert.equal(await page.getByRole('status').filter({hasText:'proposta.pdf'}).count(),0,'o anexo continuou escolhido depois de enviar')
+  console.log('PASS conversas: anexos')
   // Arquivo apagado pela retenção: a conversa explica em vez de ficar em branco.
   assert(corpo.includes('Arquivo removido pela retenção de dados.'),'conversa sem o aviso de arquivo removido')
   // Retenção de mídia: ligar um prazo exige confirmar que apagar não tem volta; o prazo vai ao banco como número.
@@ -177,6 +324,22 @@ try {
   await page.getByRole('button',{name:/Ligar nesta conversa/}).click()
   await page.waitForTimeout(400)
   assert(ligou?.ia_ligada===true&&ligou?.ia_encaminhada_em===null,'ligar não limpou o encaminhamento')
+  // Rascunho da IA: a equipe assume, pede, a IA só preenche a caixa; nada é enviado.
+  await context.route('**/rest/v1/rpc/conversa_assumir',async r=>{dono={id:user.id,nome:'Equipe Teste'};await r.fulfill({status:200,contentType:'application/json',body:'true'})})
+  let enviouRascunho=false
+  await context.route('**/functions/v1/whatsapp/enviar',async r=>{enviouRascunho=true;await r.fulfill({status:200,contentType:'application/json',body:'{"ok":true}'})})
+  await context.route('**/functions/v1/whatsapp/rascunho',async r=>{await r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,texto:'Posso sim ajudar com a proposta. Qual o prazo que você tem em mente?'})})})
+  await page.getByRole('button',{name:'Assumir conversa'}).first().click()
+  const caixaRascunho=page.getByRole('textbox',{name:'Resposta ao contato'})
+  await caixaRascunho.waitFor()
+  await page.getByRole('button',{name:'Sugerir resposta com IA'}).click()
+  await page.getByText('Rascunho da IA. Leia e ajuste antes de enviar.').waitFor()
+  assert.equal(await caixaRascunho.inputValue(),'Posso sim ajudar com a proposta. Qual o prazo que você tem em mente?','o rascunho não entrou na caixa')
+  assert.equal(enviouRascunho,false,'o rascunho foi enviado ao cliente sozinho')
+  await page.getByRole('button',{name:'Sugerir resposta com IA'}).click()
+  await page.getByText(/Limpe a caixa de texto antes/).waitFor()
+  dono=null
+  console.log('PASS assistente: rascunho da IA')
   let salvoCfg=null
   await context.route('**/rest/v1/rpc/assistente_salvar_config',async r=>{salvoCfg=r.request().postDataJSON();await r.fulfill({status:200,contentType:'application/json',body:''})})
   await page.goto(base+'/assistente-ia')
@@ -241,6 +404,24 @@ try {
   await page.getByText(/Autorizada em/).waitFor()
   assert(consentiu?.p_contato===lead.id&&consentiu?.p_ativo===true&&consentiu?.p_fonte==='pediu pelo WhatsApp','consentimento não chegou ao banco')
   console.log('PASS campanhas: lista, criação, revisão, início e consentimento')
+  // Modelos da Meta: lista com status e motivo, cria com exemplo por variável, apaga com confirmação.
+  let criado=null, apagado=null
+  await context.route('**/functions/v1/campanhas/modelos',async r=>{if(r.request().method()!=='POST')return r.fallback();criado=r.request().postDataJSON();await r.fulfill({status:200,contentType:'application/json',body:'{"ok":true,"id":"mt9","status":"PENDING"}'})})
+  await context.route('**/functions/v1/campanhas/modelos/apagar',async r=>{apagado=r.request().postDataJSON();await r.fulfill({status:200,contentType:'application/json',body:'{"ok":true}'})})
+  await page.goto(base+'/campanhas/modelos')
+  await page.getByRole('heading',{name:'promo_outubro'}).waitFor()
+  assert((await page.getByRole('region',{name:'aviso_reuniao'}).innerText()).includes('Reprovado')&&(await page.getByRole('region',{name:'aviso_reuniao'}).innerText()).includes('INCORRECT_CATEGORY'),'a lista não mostra o status e o motivo da reprovação')
+  await page.getByRole('button',{name:'Novo modelo'}).click()
+  await page.getByLabel('Nome (minúsculas, números e _)').fill('oferta_semana')
+  await page.getByLabel('Texto da mensagem').fill('Oi {{1}}, a oferta de {{2}} é sua.')
+  assert.equal(await page.getByLabel(/Exemplo para/).count(),2,'um campo de exemplo por variável')
+  await page.getByLabel('Exemplo para {{1}}').fill('Maria'); await page.getByLabel('Exemplo para {{2}}').fill('outubro')
+  await page.getByLabel('Botão 1').fill('Quero ver')
+  await page.getByRole('button',{name:'Enviar para a Meta'}).click(); await page.getByText(/Modelo enviado para análise/).waitFor()
+  assert.deepEqual(criado,{nome:'oferta_semana',idioma:'pt_BR',categoria:'MARKETING',corpo:'Oi {{1}}, a oferta de {{2}} é sua.',exemplos:['Maria','outubro'],rodape:'',botoes:['Quero ver']},'o corpo enviado à função')
+  await page.getByRole('button',{name:'Apagar promo_outubro'}).click(); await page.getByRole('button',{name:'Apagar',exact:true}).click(); await page.getByText('Modelo apagado.').waitFor()
+  assert.deepEqual(apagado,{nome:'promo_outubro'})
+  console.log('PASS campanhas: modelos da Meta')
  }
  if(comProjetos){
   // Módulo projetos: quadro por etapa, cartão da venda ganha e edição com trava otimista.

@@ -160,3 +160,32 @@ Deno.test('anexos: a tela recusa cedo o que a função recusaria (tipo, vazio, 5
 })
 Deno.test('anexos: tamanho legível', () => { eq(tamanhoLegivel(500), '1 KB'); eq(tamanhoLegivel(2048), '2 KB'); eq(tamanhoLegivel(1.5 * 1024 * 1024), '1,5 MB') })
 
+// ---------- linha do tempo ----------
+import { montarLinhaDoTempo } from '../../src/lib/linhaDoTempo.ts'
+Deno.test('linha do tempo: junta etapas, reuniões, avisos, notas e passagens, do mais novo ao mais velho', () => {
+  const r = montarLinhaDoTempo({
+    contato: { id: 'c', created_at: '2026-10-01T09:00:00Z' },
+    rotuloEtapa: (k) => ({ novo_lead: 'Novo lead', proposta: 'Proposta' } as Record<string, string>)[k] ?? k,
+    eventos: [
+      { id: 'e1', status_anterior: null, status_novo: 'novo_lead', motivo: null, created_at: '2026-10-01T09:05:00Z', oportunidade_nome: 'Site' },
+      { id: 'e2', status_anterior: 'novo_lead', status_novo: 'proposta', motivo: ' Pediu orçamento ', created_at: '2026-10-02T10:00:00Z', oportunidade_nome: 'Site' },
+    ],
+    reunioes: [{ id: 'r1', assunto: 'Diagnóstico', data_reuniao: '2026-10-05T14:00:00Z', status: 'cancelada', created_at: '2026-10-01T12:00:00Z', updated_at: '2026-10-03T08:00:00Z', cancelado_em: '2026-10-03T09:00:00Z', motivo_cancelamento: 'Remarcou' }],
+    avisos: [{ id: 'a1', titulo: 'Pediu para parar', detalhe: null, criado_em: '2026-10-03T10:00:00Z', resolvido_em: '2026-10-03T11:00:00Z', resolucao: 'manual' }],
+    notas: [{ id: 'n1', texto: '  Prefere\n  terças  ', created_at: '2026-10-02T12:00:00Z', autor_nome: 'Ana' }, { id: 'n2', texto: 'x'.repeat(300), created_at: '2026-10-02T13:00:00Z', autor_nome: null }],
+    conversaEventos: [
+      { id: 'v1', tipo: 'assumiu', created_at: '2026-10-02T11:00:00Z', por_nome: 'Ana', para_nome: 'Ana' },
+      { id: 'v2', tipo: 'transferiu', created_at: '2026-10-02T11:30:00Z', por_nome: 'Ana', para_nome: 'Beto' },
+      { id: 'v3', tipo: 'devolveu', created_at: '2026-10-02T11:40:00Z', por_nome: null, para_nome: null },
+    ],
+    ultimaMensagem: 'data inválida',
+  })
+  eq(r.map((x) => x.titulo), [
+    'Aviso dispensado: Pediu para parar', 'Aviso: Pediu para parar', 'Reunião cancelada: Diagnóstico',
+    'Nota interna', 'Nota interna de Ana', 'Alguém da equipe devolveu a conversa', 'Ana passou a conversa para Beto', 'Ana assumiu a conversa',
+    'Site: Novo lead → Proposta', 'Reunião marcada: Diagnóstico', 'Site: aberta em Novo lead', 'Contato criado',
+  ])
+  eq(r.find((x) => x.id === 'op-e2')?.detalhe, 'Pediu orçamento'); eq(r.find((x) => x.id === 'nota-n1')?.detalhe, 'Prefere terças')
+  eq(r.find((x) => x.id === 'nota-n2')?.detalhe?.length, 160, 'nota longa é cortada')
+  eq(r.find((x) => x.id === 'reuniao-r1-fim')?.detalhe, 'Remarcou'); assert(!r.some((x) => x.tipo === 'mensagem'), 'data inválida não entra')
+})

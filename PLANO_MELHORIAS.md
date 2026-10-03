@@ -22,6 +22,18 @@ Data: 03/10/2026. Referência: repositório público `melgarafael/DeskcommCRM`, 
   - Fora da fase 1, ficou: "log de webhook" e "filas" da retenção (a base não tem log de webhook; as
     filas de campanha e de resposta são pequenas).
 
+- **Fase 2 (atendimento do dia a dia): feita em 03/10/2026, sem commit.** Mesmos testes da fase 1 (PGlite, Deno, telas
+  com mocks, instalação gerada com todos os módulos). **Nada foi aplicado em Supabase real.**
+  - Conversas: respostas rápidas (0013), notas internas (0014), assumir/transferir/devolver atômico com histórico e
+    "só o dono escreve" (0015), adiar conversa (0016), anexos, rascunho da IA.
+  - Núcleo: etiquetas (0017), responsável pela oportunidade e ações em lote (0018), importar planilha CSV (0019),
+    notas e passagens na linha do tempo. Ver `docs/NUCLEO_DO_CRM.md` e `docs/MODULO_CONVERSAS.md`.
+  - Campanhas: tela de Modelos da Meta (listar, criar, apagar).
+  - **Pendências conhecidas:** (1) anexos e criação/remoção de modelos da Meta nunca foram exercitados contra a
+    uazapi e a Meta reais; (2) gravar mensagem de voz no navegador ficou de fora (webm/opus não é aceito como voz
+    pelo WhatsApp sem conversão); (3) mini-conversa flutuante e atalhos de teclado não foram feitos; (4) a mensagem
+    "SAIR" pela uazapi com o assistente desligado ainda não revoga o marketing (limite da fase 1).
+
 ## O que foi revisado
 
 O DeskcommCRM tem cerca de 990 arquivos TypeScript, 188 tabelas em
@@ -239,7 +251,7 @@ disso.
 - Vigias: mensagem presa, conexão caída (com o CRM fechado) e modo teste esquecido.
 - Retenção de mídia, log de webhook e filas.
 
-**Fase 2 — Atendimento do dia a dia.** Respostas rápidas, notas internas, etiquetas,
+**Fase 2 — Atendimento do dia a dia (FEITA, exceto voz gravada e mini-conversa).** Respostas rápidas, notas internas, etiquetas,
 adiar conversa, anexos e áudio no compositor, transferir conversa, responsável pelo
 negócio, rascunho da IA, ações em lote, importação de planilha e a tela de modelos da
 Meta (a pendência que falta para fechar o módulo campanhas).
