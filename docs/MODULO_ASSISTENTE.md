@@ -22,6 +22,11 @@ modo ao vivo (`camposDoContatoNovo`).
 7. Limite de respostas por conversa (`max_respostas`).
 8. Uma resposta por mensagem (chave primária de `assistente_respostas`) e, numa rajada,
    só a última mensagem é respondida.
+9. Quem pede para parar de receber mensagem não recebe resposta (regra única em `optout.ts`, a mesma das
+   campanhas). Pedido claro ("pare de me mandar mensagem", "sair da lista", "SAIR") desliga a IA na conversa,
+   revoga o consentimento de marketing (se houver o módulo campanhas) e abre um aviso na Central. Pedido
+   ambíguo ("me deixa em paz", "chega", "cancelar", "não tenho interesse", "isso é spam") só desliga a IA e
+   avisa a equipe, que decide. Perguntas comuns com as mesmas palavras ("tem como parar a dor?") não contam.
 As travas 5 a 7 são reavaliadas ao receber, depois da espera e imediatamente antes de enviar.
 Depois de `chamar_equipe` a trava "IA ligada na conversa" é dispensada só para enviar a
 frase de despedida; todas as outras seguem valendo.

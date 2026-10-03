@@ -12,9 +12,12 @@
  *  7. limite de respostas por conversa.
  *  8. uma resposta por mensagem do cliente (chave primária em `assistente_respostas`) e só a ÚLTIMA mensagem
  *     de uma rajada é respondida.
+ *  9. quem pede para parar de receber mensagem (`optout.ts`) não recebe resposta: a IA se cala na conversa e a
+ *     equipe é chamada. Pedido inequívoco também revoga o consentimento de marketing; o ambíguo só chama a equipe.
  * As travas 5 a 7 são reavaliadas três vezes: ao receber, depois da espera e imediatamente antes de enviar.
  */
 import { FERRAMENTAS, LIMITE_PALAVRAS, montarPrompt } from './assistente_prompt.ts'
+import { classificarOptOut, type NivelOptOut } from './optout.ts'
 import type { MensagemLLM, PedidoLLM, RespostaLLM } from './llm.ts'
 
 export const HORAS_DE_SILENCIO = 12
@@ -78,6 +81,8 @@ export interface DepsIA {
   servicos(): Promise<Servico[]>
   horarios(dia: string, duracaoMinutos: number): Promise<string[]>
   encaminhar(contatoId: string, resumo: string): Promise<void>
+  /** O cliente pediu (ou parece ter pedido) para parar: calar a IA na conversa, avisar a equipe e, se for pedido claro, revogar o marketing. */
+  pararDeFalar(contatoId: string, nivel: Exclude<NivelOptOut, 'nenhum'>): Promise<void>
   /** Envia e grava a mensagem como `agente`. Lança se não saiu: nunca reenviar. */
   enviar(contatoId: string, telefone: string, texto: string): Promise<void>
 }
@@ -183,6 +188,12 @@ export async function responderComIA(deps: DepsIA, entrada: EntradaIA): Promise<
     return r
   }
   try {
+    // Trava 9. Vem antes de qualquer espera ou modelo: quem pediu para parar não recebe nem a tentativa de reter.
+    const optout = classificarOptOut(entrada.texto)
+    if (optout !== 'nenhum') {
+      try { await deps.pararDeFalar(entrada.contatoId, optout) } catch { return await fim({ estado: 'falhou', motivo: 'erro_ao_registrar_pedido_para_parar' }) }
+      return await fim({ estado: 'ignorada', motivo: optout === 'pedido' ? 'pediu_para_parar' : 'possivel_pedido_para_parar' })
+    }
     // Rajada: quem escreve em pedaços é respondido uma vez só, pela última mensagem.
     if (config.esperaSegundos > 0) await deps.esperar(config.esperaSegundos * 1000)
     if (await deps.temMensagemMaisNova(entrada.contatoId, entrada.mensagemId)) return await fim({ estado: 'ignorada', motivo: 'mensagem_mais_nova' })

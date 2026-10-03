@@ -63,9 +63,9 @@ Deno.test('prompt e ferramentas: sem travessão; regras de persona e segurança 
 
 // ---------- o caminho completo, com dependências falsas ----------
 
-interface Falso { deps: DepsIA; enviados: string[]; finais: { estado: string; motivo: string | null }[]; pedidos: PedidoLLM[]; encaminhados: string[]; reservas: number }
-function falso(o: { config?: Partial<ConfigIA>; conversa?: () => Partial<ConversaIA>; respostas?: RespostaLLM[]; equipe?: () => boolean; reservar?: boolean; maisNova?: boolean; falhaEnvio?: boolean; falhaModelo?: boolean } = {}): Falso {
-  const f: Falso = { deps: null as unknown as DepsIA, enviados: [], finais: [], pedidos: [], encaminhados: [], reservas: 0 }
+interface Falso { deps: DepsIA; enviados: string[]; finais: { estado: string; motivo: string | null }[]; pedidos: PedidoLLM[]; encaminhados: string[]; reservas: number; paradas: string[] }
+function falso(o: { config?: Partial<ConfigIA>; conversa?: () => Partial<ConversaIA>; respostas?: RespostaLLM[]; equipe?: () => boolean; reservar?: boolean; maisNova?: boolean; falhaEnvio?: boolean; falhaModelo?: boolean; falhaAoParar?: boolean } = {}): Falso {
+  const f: Falso = { deps: null as unknown as DepsIA, enviados: [], finais: [], pedidos: [], encaminhados: [], reservas: 0, paradas: [] }
   const fila = [...(o.respostas ?? [{ texto: 'Os serviços começam a partir de R$ 100.', chamadas: [] }])]
   let conversa: ConversaIA = { ...CONVERSA }
   f.deps = {
@@ -83,6 +83,7 @@ function falso(o: { config?: Partial<ConfigIA>; conversa?: () => Partial<Convers
     servicos: () => Promise.resolve([{ nome: 'Consultoria', descricao: 'Conversa inicial', preco_a_partir_de: 100, duracao_minutos: 45, exige_reuniao_previa: false }]),
     horarios: (_d, min) => Promise.resolve(min === 45 ? ['09:00', '10:30'] : ['14:00']),
     encaminhar: (_c, resumo) => { f.encaminhados.push(resumo); conversa = { ...conversa, iaLigada: false }; return Promise.resolve() },
+    pararDeFalar: (_c, nivel) => { if (o.falhaAoParar) return Promise.reject(new Error('banco fora')); f.paradas.push(nivel); conversa = { ...conversa, iaLigada: false }; return Promise.resolve() },
     enviar: (_c, _t, texto) => { if (o.falhaEnvio) return Promise.reject(new Error('uazapi fora')); f.enviados.push(texto); return Promise.resolve() },
   }
   return f
@@ -184,4 +185,39 @@ Deno.test('limite de respostas por conversa é respeitado', async () => {
   const f = falso({ conversa: () => ({ respostasDaIA: 5 }) })
   const r = await responderComIA(f.deps, ENTRADA)
   assert(r.estado === 'ignorada' && f.enviados.length === 0)
+})
+
+// ---------- trava 9: quem pede para parar não recebe resposta ----------
+
+Deno.test('pedido claro para parar: a IA não chama o modelo nem responde, e registra o pedido', async () => {
+  const f = falso()
+  const r = await responderComIA(f.deps, { ...ENTRADA, texto: 'Pare de me mandar mensagem' })
+  assert(r.estado === 'ignorada' && 'motivo' in r && r.motivo === 'pediu_para_parar')
+  assert(f.pedidos.length === 0 && f.enviados.length === 0, 'não pode chamar o modelo nem enviar')
+  assert(f.paradas.join() === 'pedido' && f.finais[0].estado === 'ignorada' && f.finais[0].motivo === 'pediu_para_parar')
+})
+
+Deno.test('pedido ambíguo: também cala a IA, mas como "provável" (a equipe confirma)', async () => {
+  const f = falso()
+  const r = await responderComIA(f.deps, { ...ENTRADA, texto: 'me deixa em paz' })
+  assert(r.estado === 'ignorada' && 'motivo' in r && r.motivo === 'possivel_pedido_para_parar')
+  assert(f.paradas.join() === 'provavel' && f.pedidos.length === 0 && f.enviados.length === 0)
+})
+
+Deno.test('pergunta comum com a palavra "parar" não é pedido: a IA responde', async () => {
+  const f = falso()
+  const r = await responderComIA(f.deps, { ...ENTRADA, texto: 'tem como parar a dor de cabeça com o sistema?' })
+  assert(r.estado === 'respondida' && f.paradas.length === 0 && f.enviados.length === 1)
+})
+
+Deno.test('falha ao registrar o pedido: não responde mesmo assim, e o motivo fica no log', async () => {
+  const f = falso({ falhaAoParar: true })
+  const r = await responderComIA(f.deps, { ...ENTRADA, texto: 'STOP' })
+  assert(r.estado === 'falhou' && f.enviados.length === 0 && f.pedidos.length === 0)
+})
+
+Deno.test('IA desligada ou conversa assumida: o pedido não é tratado aqui (nada é reservado)', async () => {
+  const f = falso({ config: { modo: 'desligada' } })
+  const r = await responderComIA(f.deps, { ...ENTRADA, texto: 'sair' })
+  assert(r.estado === 'ignorada' && f.reservas === 0 && f.paradas.length === 0)
 })

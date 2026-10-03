@@ -9,6 +9,7 @@
  */
 import { descreverModeloCampanha, eventosMeta, mensagemMeta, preencherModelo, type ModeloMeta } from './meta-protocolo.ts'
 import { ErroMeta } from './meta-api.ts'
+import { ehPedidoDeOptOut } from './optout.ts'
 
 export interface Lote {
   destinatario_id: string; campanha_id: string; contato_id: string; whatsapp: string
@@ -105,11 +106,8 @@ export async function processarLote(deps: DepsCampanhas, limite = 10): Promise<R
 // Webhook da Meta: recibos de entrega e mensagens recebidas
 // ---------------------------------------------------------------------------
 
-/** Sair, parar, stop... com ou sem acento/pontuação. Só a mensagem inteira conta (não "não quero parar"). */
-export function ehOptOut(valor: string | null | undefined): boolean {
-  const texto = (valor ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim()
-  return new Set(['sair', 'parar', 'stop', 'cancelar mensagens', 'nao me envie mais mensagens', 'nao quero receber mensagens']).has(texto)
-}
+/** Pedido inequívoco de parar de receber mensagem. A regra é a de `optout.ts`, a mesma do assistente. */
+export const ehOptOut = ehPedidoDeOptOut
 
 export interface DepsWebhook {
   status(idExterno: string, status: string, erro: string | null): Promise<boolean>

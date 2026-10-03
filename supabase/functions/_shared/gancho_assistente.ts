@@ -6,6 +6,7 @@
 import { atualizar, inserir, rpc, selecionar } from './db.ts'
 import { conversar } from './llm.ts'
 import { UAZAPI } from './uazapi.ts'
+import { abrirAviso } from './avisos.ts'
 import { responderComIA, type ConfigIA, type DepsIA } from './assistente.ts'
 
 export interface MensagemGravada {
@@ -80,6 +81,20 @@ function depsDoBanco(): DepsIA {
     },
     async encaminhar(contatoId, resumo) {
       await atualizar('contatos_dados', `id=eq.${contatoId}`, { ia_ligada: false, ia_encaminhada_em: new Date().toISOString(), ia_resumo: resumo.slice(0, 500) })
+    },
+    async pararDeFalar(contatoId, nivel) {
+      const claro = nivel === 'pedido'
+      await atualizar('contatos_dados', `id=eq.${contatoId}`, {
+        ia_ligada: false, ia_encaminhada_em: new Date().toISOString(),
+        ia_resumo: claro ? 'Pediu para parar de receber mensagens.' : 'Pode ter pedido para parar de receber mensagens.',
+      })
+      // Revoga o marketing só no pedido claro. Sem o módulo campanhas a função não existe: não é erro.
+      if (claro) await rpc('marketing_registrar_preferencia', { p_contato: contatoId, p_ativo: false, p_fonte: 'Pediu para parar de receber mensagens (resposta ao WhatsApp).' }).catch(() => {})
+      await abrirAviso(rpc, {
+        tipo: 'pediu_para_parar', chave: contatoId, gravidade: 'atencao', contatoId, rota: '/conversas',
+        titulo: claro ? 'Um contato pediu para parar de receber mensagens' : 'Um contato pode ter pedido para parar',
+        detalhe: claro ? 'A IA se calou nesta conversa e o marketing foi bloqueado. Confira antes de qualquer contato.' : 'A IA se calou nesta conversa. Leia a mensagem e decida: se foi um pedido, registre o bloqueio.',
+      })
     },
     async enviar(contatoId, telefone, texto) {
       // Reserva primeiro, envia depois, como na rota de envio da equipe.

@@ -17,8 +17,8 @@ const MODULOS = {
   conversas: {
     migracoes: ['0007_modulo_conversas'],
     funcoes: ['whatsapp'],
-    compartilhados: ['uazapi.ts', 'whatsapp.ts', 'gancho.ts', 'sessao.ts', 'conversas_test.ts'],
-    scripts: ['test:conversas', 'test:conversas:db:rehearsal', 'test:conversas:db:apply', 'test:ui:conversas'],
+    compartilhados: ['uazapi.ts', 'whatsapp.ts', 'gancho.ts', 'sessao.ts', 'conversas_test.ts', 'optout.ts', 'optout_test.ts'],
+    scripts: ['test:conversas', 'test:optout', 'test:conversas:db:rehearsal', 'test:conversas:db:apply', 'test:ui:conversas'],
   },
   assistente: {
     requer: ['conversas'],
