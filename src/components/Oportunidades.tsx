@@ -7,6 +7,7 @@ import { moduloAtivo } from '../lib/modulos'
 import type { LeadStatus } from '../types'
 import ModalPortal from './ModalPortal'
 import { useSessao } from '../lib/sessao'
+import { useEquipeAtiva } from '../lib/useEquipeAtiva'
 import './Oportunidades.css'
 
 const campo = { width: '100%', padding: 10, border: '1px solid var(--border)', borderRadius: 8, font: 'inherit', boxSizing: 'border-box' as const }
@@ -17,7 +18,9 @@ export function EditorOportunidade({ oportunidade, leadId, statusInicial, onClos
   // Cancelar mexe em histórico financeiro: o valor sai das vendas ganhas e o
   // projeto fica marcado para revisão. O gatilho da 0034 recusa quem não é
   // gestor; esconder o botão só evita o erro depois de digitar o motivo.
-  const { gestor } = useSessao()
+  const { gestor, usuario } = useSessao()
+  const equipe = useEquipeAtiva()
+  const [responsavel, setResponsavel] = useState(oportunidade ? oportunidade.responsavel_id ?? '' : usuario?.id ?? '')
   const [nome, setNome] = useState(oportunidade?.nome ?? '')
   const [status, setStatus] = useState<LeadStatus>(statusInicial ?? oportunidade?.status ?? 'novo_lead')
   const [valor, setValor] = useState(oportunidade?.valor_proposta == null ? '' : String(oportunidade.valor_proposta))
@@ -51,7 +54,7 @@ export function EditorOportunidade({ oportunidade, leadId, statusInicial, onClos
     if (cancelando && motivo.trim().length < 5) { setErro('Descreva o motivo do cancelamento (mínimo de 5 caracteres).'); return }
     setSalvando(true); setErro('')
     try {
-      const campos = cancelando ? { status: 'perdido', motivo_cancelamento: motivo.trim() } : { nome: nome.trim(), status, valor_proposta: numero, servicos_contratados: servicos, escopo }
+      const campos = cancelando ? { status: 'perdido', motivo_cancelamento: motivo.trim() } : { nome: nome.trim(), status, valor_proposta: numero, servicos_contratados: servicos, escopo, responsavel_id: responsavel || null }
       const q = oportunidade
         ? supabase.from('oportunidades').update(campos).eq('id', oportunidade.id).eq('updated_at', oportunidade.updated_at)
         : supabase.from('oportunidades').insert({ ...campos, contato_id: leadId })
@@ -67,6 +70,7 @@ export function EditorOportunidade({ oportunidade, leadId, statusInicial, onClos
       {encerrada && <p>Venda encerrada. Para outra compra, crie uma nova oportunidade. O histórico é preservado em caso de cancelamento.</p>}
       <label>Nome da oportunidade<input autoFocus required maxLength={160} disabled={encerrada || salvando} style={campo} value={nome} onChange={e => setNome(e.target.value)} /></label>
       <label>Etapa<select aria-label="Etapa" style={campo} disabled={encerrada || salvando} value={status} onChange={e => setStatus(e.target.value as LeadStatus)}>{funil.etapas.map(e => <option key={e.chave} value={e.chave}>{e.rotulo}</option>)}</select></label>
+      <label>Responsável<select aria-label="Responsável" style={campo} disabled={encerrada || salvando} value={responsavel} onChange={e => setResponsavel(e.target.value)}><option value="">Sem responsável</option>{equipe.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}</select></label>
       <label>Valor da proposta (R$)<input type="number" min="0" max="999999999999.99" step="0.01" disabled={encerrada || salvando} style={campo} value={valor} onChange={e => setValor(e.target.value)} /></label>
       <fieldset disabled={encerrada || salvando} style={{ border: '1px solid var(--border)', borderRadius: 8 }}><legend>Serviços desta contratação</legend>{[...new Set([...catalogo, ...servicos])].map(s => <label key={s} style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '10px 0' }}><input type="checkbox" checked={servicos.includes(s)} onChange={e => setServicos(e.target.checked ? [...servicos, s] : servicos.filter(x => x !== s))} />{s}</label>)}{!catalogo.length && !servicos.length && <p>Nenhum serviço disponível. Confira o catálogo.</p>}</fieldset>
       <label>Escopo<textarea rows={4} disabled={encerrada || salvando} style={campo} value={escopo} onChange={e => setEscopo(e.target.value)} /></label>

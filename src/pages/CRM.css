@@ -52,3 +52,8 @@
 .crm-result-actions button, .crm-result-actions a { padding: 8px 10px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); color: var(--accent); text-decoration: none; font-size: 12px; font-weight: 600; white-space: nowrap; }
 .crm-results-empty { padding: 38px; border: 1px dashed var(--border-strong); border-radius: 12px; color: var(--muted); text-align: center; }
 @media (max-width: 760px) { .crm-overview { gap: 8px; padding: 12px; } .crm-overview > span { flex-basis: 135px; } .crm-result { flex-wrap: wrap; } .crm-result-main { flex-basis: calc(100% - 55px); } .crm-result-value { text-align: left; } .crm-result-actions { margin-left: auto; } }
+
+.crm-deal-owner { color: var(--muted); font-size: 12px; }
+.crm-select { width: 18px; height: 18px; flex: 0 0 auto; }
+.crm-bulk { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 12px; padding: 10px 12px; border: 1px solid var(--accent); border-radius: 10px; background: var(--accent-soft); }
+.crm-bulk select, .crm-toolbar select { padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font: 13px var(--font-body); }

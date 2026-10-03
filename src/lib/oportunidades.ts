@@ -6,6 +6,8 @@ export interface Oportunidade {
   valor_proposta: number | null; servicos_contratados: string[]; escopo: string
   fechado_em: string | null; cancelado_em: string | null; motivo_cancelamento: string | null
   created_at: string; updated_at: string
+  /** Quem responde pela venda (migração 0018). Nulo = sem responsável. */
+  responsavel_id: string | null
   contato: { nome: string | null; empresa: string | null; whatsapp: string | null } | null
 }
 export const SELECT_OPORTUNIDADE = '*, contato:contatos_dados(nome,empresa,whatsapp)'
