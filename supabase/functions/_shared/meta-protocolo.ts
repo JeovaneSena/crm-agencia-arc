@@ -158,6 +158,8 @@ export async function assinaturaValida(raw: string, assinatura: string | null, s
 export interface ModeloMeta {
   id: string; name: string; language: string; status: string; category?: string; parameter_format?: string
   quality_score?: { score?: string; date?: number } | string
+  /** Motivo informado pela Meta quando o modelo é reprovado. */
+  rejected_reason?: string
   components: { type: string; format?: string; text?: string; buttons?: {type:string;url?:string;text?:string;phone_number?:string}[] }[]
 }
 export function camposModelo(m: ModeloMeta): {tipo:string; quantidade:number; texto:string}[] | null {
@@ -245,5 +247,84 @@ function descreverModelo(m: ModeloMeta, categoria: string, recusa: string): Mode
       .flatMap((componente) => componente.buttons ?? [])
       .map((botao) => ({ tipo: botao.type, texto: botao.text, url: botao.url })),
     componentes: m.components ?? [],
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Criar e listar modelos (tela de gestão)
+// ---------------------------------------------------------------------------
+
+export type CategoriaCriavel = 'MARKETING' | 'UTILITY'
+export interface EntradaDeModelo {
+  nome: string
+  idioma: string
+  categoria: CategoriaCriavel
+  /** Texto do corpo, com {{1}}, {{2}}... */
+  corpo: string
+  /** Um exemplo por variável, na ordem. A Meta exige: sem exemplo ela reprova. */
+  exemplos: string[]
+  rodape?: string
+  /** Botões de resposta rápida (até 3). */
+  botoes?: string[]
+}
+
+/** Idiomas que a tela oferece. A lista da Meta é maior; estes cobrem o uso da base. */
+export const IDIOMAS_DE_MODELO = ['pt_BR', 'en_US', 'es', 'es_AR'] as const
+
+/**
+ * Confere o modelo ANTES de mandar à Meta e monta o corpo da chamada. A Meta reprova depois de horas por coisas
+ * que se sabe de antemão; aqui se recusa na hora, com a frase que diz o que corrigir. O que cobre é de propósito
+ * pouco: texto, variáveis numéricas com exemplo, rodapé e botões de resposta rápida (o que as campanhas
+ * sabem enviar). Cabeçalho com mídia, botão de link e autenticação ficam para o WhatsApp Manager.
+ */
+export function montarCriacaoDeModelo(e: EntradaDeModelo): { ok: true; corpo: Record<string, unknown> } | { ok: false; erro: string } {
+  const falha = (erro: string) => ({ ok: false as const, erro })
+  const nome = (e.nome ?? '').trim()
+  if (!/^[a-z][a-z0-9_]{0,511}$/.test(nome)) return falha('O nome usa só letras minúsculas sem acento, números e "_", e começa por letra (ex.: promo_outubro).')
+  if (!(IDIOMAS_DE_MODELO as readonly string[]).includes(e.idioma)) return falha('Idioma não suportado por esta tela.')
+  if (e.categoria !== 'MARKETING' && e.categoria !== 'UTILITY') return falha('Escolha Marketing ou Utilidade.')
+  const corpo = (e.corpo ?? '').trim()
+  if (!corpo) return falha('Escreva o texto da mensagem.')
+  if (corpo.length > 1024) return falha('O texto passa de 1024 caracteres.')
+  if (/\n{3,}/.test(corpo) || /[\t]/.test(corpo)) return falha('Use no máximo uma linha em branco entre parágrafos e sem tabulação.')
+  const usados = [...corpo.matchAll(/\{\{([^}]*)\}\}/g)].map((m) => m[1])
+  if (usados.some((u) => !/^\d+$/.test(u))) return falha('As variáveis são numeradas: {{1}}, {{2}}...')
+  const numeros = usados.map(Number)
+  const quantidade = Math.max(0, ...numeros)
+  if (quantidade > 10) return falha('Use no máximo 10 variáveis.')
+  if (new Set(numeros).size !== quantidade || numeros.some((n) => n < 1)) return falha('Numere as variáveis em sequência, sem pular: {{1}}, {{2}}, {{3}}...')
+  if (/^\s*\{\{\d+\}\}/.test(corpo) || /\{\{\d+\}\}[\s.!?]*$/.test(corpo)) return falha('A Meta reprova texto que começa ou termina com uma variável. Ponha uma palavra antes e depois.')
+  if (/\{\{\d+\}\}\s*\{\{\d+\}\}/.test(corpo)) return falha('Não deixe duas variáveis coladas.')
+  const exemplos = (e.exemplos ?? []).map((x) => (x ?? '').trim())
+  if (exemplos.length !== quantidade || exemplos.some((x) => !x || x.length > 200)) return falha(quantidade ? `Dê um exemplo para cada variável (${quantidade}): a Meta usa para aprovar.` : 'Este texto não tem variáveis; deixe os exemplos vazios.')
+  const rodape = (e.rodape ?? '').trim()
+  if (rodape && (rodape.length > 60 || /\{\{/.test(rodape))) return falha('O rodapé tem no máximo 60 caracteres e não aceita variáveis.')
+  const botoes = (e.botoes ?? []).map((b) => (b ?? '').trim()).filter(Boolean)
+  if (botoes.length > 3) return falha('Use no máximo 3 botões de resposta.')
+  if (botoes.some((b) => b.length > 25 || /\{\{/.test(b))) return falha('O texto de cada botão tem no máximo 25 caracteres e não aceita variáveis.')
+  if (new Set(botoes.map((b) => b.toLowerCase())).size !== botoes.length) return falha('Os botões não podem repetir o texto.')
+
+  const componentes: Record<string, unknown>[] = [{ type: 'BODY', text: corpo, ...(quantidade ? { example: { body_text: [exemplos] } } : {}) }]
+  if (rodape) componentes.push({ type: 'FOOTER', text: rodape })
+  if (botoes.length) componentes.push({ type: 'BUTTONS', buttons: botoes.map((text) => ({ type: 'QUICK_REPLY', text })) })
+  return { ok: true, corpo: { name: nome, language: e.idioma, category: e.categoria, components: componentes } }
+}
+
+export interface ModeloDeGestao {
+  id: string; nome: string; idioma: string; status: string; categoria: string; qualidade: string | null
+  /** Por que a Meta reprovou, quando reprovou. */
+  motivo: string | null
+  corpo: string; rodape: string | null; botoes: string[]
+}
+
+/** Todos os modelos da conta (qualquer categoria e estado), para a tela de gestão. */
+export function descreverModeloGestao(m: ModeloMeta): ModeloDeGestao {
+  const parte = (tipo: string) => m.components?.find((c) => c.type === tipo)
+  const qualidade = typeof m.quality_score === 'string' ? m.quality_score : m.quality_score?.score ?? null
+  const motivo = m.rejected_reason && m.rejected_reason !== 'NONE' ? m.rejected_reason : null
+  return {
+    id: m.id, nome: m.name, idioma: m.language, status: m.status, categoria: m.category ?? '', qualidade, motivo,
+    corpo: parte('BODY')?.text ?? '', rodape: parte('FOOTER')?.text ?? null,
+    botoes: (parte('BUTTONS')?.buttons ?? []).map((b) => b.text ?? '').filter(Boolean),
   }
 }

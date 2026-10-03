@@ -19,6 +19,7 @@ import Projetos from './pages/Projetos'
 import Campanhas from './pages/Campanhas'
 import NovaCampanha from './pages/NovaCampanha'
 import CampanhaDetalhe from './pages/CampanhaDetalhe'
+import ModelosMeta from './pages/ModelosMeta'
 import Usuarios from './pages/Usuarios'
 import Avisos from './pages/Avisos'
 import { moduloAtivo } from './lib/modulos'
@@ -37,6 +38,7 @@ export default function App() {
             <Route path="/crm" element={<CRM />} />
             {moduloAtivo('conversas') && <Route path="/conversas" element={<Conversas />} />}
             {moduloAtivo('campanhas') && <Route path="/campanhas" element={<Campanhas />} />}
+            {moduloAtivo('campanhas') && <Route path="/campanhas/modelos" element={<ModelosMeta />} />}
             {moduloAtivo('campanhas') && <Route path="/campanhas/nova" element={<NovaCampanha />} />}
             {moduloAtivo('campanhas') && <Route path="/campanhas/:id/editar" element={<NovaCampanha />} />}
             {moduloAtivo('campanhas') && <Route path="/campanhas/:id" element={<CampanhaDetalhe />} />}

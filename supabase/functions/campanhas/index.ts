@@ -6,6 +6,9 @@
  *   GET  /webhook?hub.*          verificação do webhook pela Meta
  *   POST /webhook                recibos (enviado/entregue/lido/falhou) e mensagens recebidas, assinados (x-hub-signature-256)
  *   GET  /modelos                só gestor: modelos aprovados de MARKETING, com o que impede cada um de ser usado
+ *   GET  /modelos/todos          só gestor: todos os modelos da conta (qualquer categoria e estado), com o motivo de reprovação
+ *   POST /modelos                só gestor: cria um modelo na Meta (texto, variáveis, rodapé, respostas rápidas); fica em análise
+ *   POST /modelos/apagar         só gestor: apaga um modelo pelo nome (recusa se uma campanha em aberto o usa)
  *   GET  /conta                  só gestor: o número da Meta (nome, qualidade, limite), sem nenhuma chave
  *   POST /processar              o trabalhador (Authorization: Bearer CAMPANHAS_WORKER_SECRET): envia um lote da fila
  *
@@ -14,8 +17,8 @@
  */
 import { inserir, rpc, selecionar } from '../_shared/db.ts'
 import { usuarioDaSessao } from '../_shared/sessao.ts'
-import { enviarModelo, estadoDoNumero, metaConfig, metaConfigurada, modelosMeta } from '../_shared/meta-api.ts'
-import { assinaturaValida, descreverModeloCampanha } from '../_shared/meta-protocolo.ts'
+import { apagarModeloMeta, criarModeloMeta, enviarModelo, ErroMeta, estadoDoNumero, metaConfig, metaConfigurada, modelosMeta } from '../_shared/meta-api.ts'
+import { assinaturaValida, descreverModeloCampanha, descreverModeloGestao, montarCriacaoDeModelo, type EntradaDeModelo } from '../_shared/meta-protocolo.ts'
 import { processarLote, tratarWebhook, type DepsCampanhas, type DepsWebhook } from '../_shared/campanhas.ts'
 
 const CORS = {
@@ -33,6 +36,9 @@ export async function handler(req: Request): Promise<Response> {
     if (rota === '/webhook' && req.method === 'GET') return verificarWebhook(url)
     if (rota === '/webhook' && req.method === 'POST') return await receberWebhook(req)
     if (rota === '/modelos' && req.method === 'GET') return await rotaModelos(req)
+    if (rota === '/modelos/todos' && req.method === 'GET') return await rotaModelosTodos(req)
+    if (rota === '/modelos' && req.method === 'POST') return await rotaCriarModelo(req)
+    if (rota === '/modelos/apagar' && req.method === 'POST') return await rotaApagarModelo(req)
     if (rota === '/conta' && req.method === 'GET') return await rotaConta(req)
     if (rota === '/processar' && req.method === 'POST') return await rotaProcessar(req)
     return json({ ok: false, motivo: 'rota_desconhecida' }, 404)
@@ -104,6 +110,51 @@ async function rotaModelos(req: Request): Promise<Response> {
   const modelos = await modelosMeta()
   // Só marketing aparece: é o que esta tela dispara. Os demais não são mostrados nem como "indisponíveis".
   return json({ ok: true, modelos: modelos.filter(m => m.category === 'MARKETING').map(descreverModeloCampanha) })
+}
+
+async function rotaModelosTodos(req: Request): Promise<Response> {
+  const negado = await exigirGestor(req); if (negado) return negado
+  if (!metaConfigurada()) return json({ ok: false, motivo: 'nao_configurado' }, 400)
+  return json({ ok: true, modelos: (await modelosMeta()).map(descreverModeloGestao) })
+}
+
+/** Cria o modelo. Conferido antes (`montarCriacaoDeModelo`) para a Meta não reprovar por algo que já se sabia. */
+async function rotaCriarModelo(req: Request): Promise<Response> {
+  const negado = await exigirGestor(req); if (negado) return negado
+  if (!metaConfigurada()) return json({ ok: false, motivo: 'nao_configurado' }, 400)
+  const entrada = await req.json().catch(() => null) as Partial<EntradaDeModelo> | null
+  if (!entrada || typeof entrada !== 'object') return json({ ok: false, motivo: 'dados_invalidos' }, 400)
+  const pronto = montarCriacaoDeModelo({
+    nome: String(entrada.nome ?? ''), idioma: String(entrada.idioma ?? ''), categoria: entrada.categoria as EntradaDeModelo['categoria'],
+    corpo: String(entrada.corpo ?? ''), exemplos: Array.isArray(entrada.exemplos) ? entrada.exemplos.map(String) : [],
+    rodape: typeof entrada.rodape === 'string' ? entrada.rodape : undefined, botoes: Array.isArray(entrada.botoes) ? entrada.botoes.map(String) : [],
+  })
+  if (!pronto.ok) return json({ ok: false, motivo: 'modelo_invalido', erro: pronto.erro }, 400)
+  try {
+    const criado = await criarModeloMeta(pronto.corpo)
+    return json({ ok: true, ...criado })
+  } catch (e) {
+    // "Incerto" = a Meta pode ter criado: a tela manda conferir a lista antes de tentar de novo.
+    const incerto = e instanceof ErroMeta && e.incerto
+    return json({ ok: false, motivo: incerto ? 'incerto' : 'recusado_pela_meta', erro: e instanceof Error ? e.message : 'Erro' }, incerto ? 502 : 400)
+  }
+}
+
+/** Apagar não tem volta. Recusa se uma campanha que ainda vai enviar usa o modelo: ela falharia na hora de enviar. */
+async function rotaApagarModelo(req: Request): Promise<Response> {
+  const negado = await exigirGestor(req); if (negado) return negado
+  if (!metaConfigurada()) return json({ ok: false, motivo: 'nao_configurado' }, 400)
+  const corpo = await req.json().catch(() => ({})) as { nome?: string }
+  const nome = String(corpo.nome ?? '').trim()
+  if (!/^[a-z][a-z0-9_]{0,511}$/.test(nome)) return json({ ok: false, motivo: 'dados_invalidos' }, 400)
+  const emUso = await selecionar<{ id: string }>(`campanhas?select=id&modelo_nome=eq.${encodeURIComponent(nome)}&estado=in.(rascunho,pronta,enviando,pausada)&limit=1`)
+  if (emUso.length) return json({ ok: false, motivo: 'em_uso', erro: 'Uma campanha em aberto usa este modelo. Conclua ou cancele a campanha antes.' }, 409)
+  try {
+    await apagarModeloMeta(nome)
+    return json({ ok: true })
+  } catch (e) {
+    return json({ ok: false, motivo: 'recusado_pela_meta', erro: e instanceof Error ? e.message : 'Erro' }, 400)
+  }
 }
 
 async function rotaConta(req: Request): Promise<Response> {

@@ -56,7 +56,7 @@ export default function Campanhas() {
   if (carregando) return <div className="page-content"><LoadingState label="Carregando campanhas…" /></div>
   return <div className="page-content">
     <PageHeader title="Campanhas" description="Disparo de modelos aprovados pela Meta para contatos que autorizaram receber. Cada envio aparece na conversa do contato."
-      actions={gestor ? <Link to="/campanhas/nova" style={{ ...botao, background: 'var(--action)', color: 'var(--on-action)', textDecoration: 'none' }}><Plus size={15} /> Nova campanha</Link> : undefined} />
+      actions={gestor ? <><Link to="/campanhas/modelos" style={{ ...botao, textDecoration: 'none', marginRight: 8 }}>Modelos da Meta</Link><Link to="/campanhas/nova" style={{ ...botao, background: 'var(--action)', color: 'var(--on-action)', textDecoration: 'none' }}><Plus size={15} /> Nova campanha</Link></> : undefined} />
     {erro && <p role="alert" style={{ color: 'var(--danger)' }}>{erro}</p>}
     {gestor && conta && !conta.configurada && <Notice tone="warning">A Meta ainda não está configurada no servidor. Sem as chaves e o número, dá para montar campanhas, mas nada é enviado.</Notice>}
     {gestor && conta?.configurada && !conta.indisponivel && <p style={{ fontSize: 13, color: 'var(--muted)' }}>Número: <strong>{conta.numero ?? '—'}</strong> ({conta.nome ?? 'sem nome verificado'}) · qualidade {conta.qualidade ?? '—'} · limite da Meta {conta.limite ?? '—'}</p>}

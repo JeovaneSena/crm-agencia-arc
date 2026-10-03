@@ -19,8 +19,8 @@ mensagem na conversa do contato. A base ainda **não foi testada com a Meta real
 Consentimento, campanhas, público congelado, fila com reserva e controle de limites. Depende da 0007.
 
 ## Função (`supabase/functions/campanhas`)
-Rotas: `GET/POST /webhook` (verificação e recibos da Meta, assinados), `GET /modelos` e `GET /conta`
-(só gestor) e `POST /processar` (o trabalhador). Secrets: `META_ACCESS_TOKEN`, `META_APP_SECRET`,
+Rotas: `GET/POST /webhook` (verificação e recibos da Meta, assinados), `GET /modelos`, `GET /modelos/todos`,
+`POST /modelos`, `POST /modelos/apagar` e `GET /conta` (só gestor) e `POST /processar` (o trabalhador). Secrets: `META_ACCESS_TOKEN`, `META_APP_SECRET`,
 `META_VERIFY_TOKEN`, `META_PHONE_NUMBER_ID`, `META_WABA_ID`, `META_GRAPH_VERSION` (ex.: `v21.0`) e
 `CAMPANHAS_WORKER_SECRET` (24+ caracteres). Webhook da Meta:
 `https://<ref>.supabase.co/functions/v1/campanhas/webhook`.
@@ -31,8 +31,12 @@ Sem agendamento, a fila não envia. Agende uma vez por minuto:
 O ritmo real é do banco; rodar mais vezes não envia mais.
 
 ## Limites conhecidos
-- Não há tela própria para listar e criar modelos da Meta: eles são criados e aprovados no painel
-  da Meta, e o CRM só lista os aprovados de Marketing.
+- A tela **Modelos da Meta** (`/campanhas/modelos`, só gestor) lista todos os modelos da conta (qualquer categoria
+  e estado, com o motivo quando a Meta reprova), cria (texto com variáveis `{{1}}`, exemplo por variável, rodapé
+  e até 3 botões de resposta) e apaga. A aprovação é da Meta e leva de minutos a horas. Cabeçalho com mídia,
+  botão de link e modelos de autenticação continuam no WhatsApp Manager. O modelo é conferido antes de ir à Meta
+  (nome, variáveis em sequência, texto que não começa nem termina com variável, limites), e apagar é recusado
+  enquanto uma campanha em aberto usa o modelo. **Criar e apagar ainda não foram exercitados contra a Meta real.**
 
 ## Testes
 `npm run test:campanhas` (função, sem rede) · `npm run test:ui:campanhas` (telas) ·

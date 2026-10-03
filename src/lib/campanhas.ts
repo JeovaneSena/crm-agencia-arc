@@ -90,3 +90,29 @@ export async function chamarCampanhas<T>(rota: string): Promise<T> {
 export function mensagemDoBanco(e: { code?: string; message?: string } | null, padrao: string): string {
   return e && (e.code === '22023' || e.code === '55000') && e.message ? e.message : e?.code === '42501' ? 'Só o gestor faz isso.' : padrao
 }
+
+export interface ModeloDeGestao {
+  id: string; nome: string; idioma: string; status: string; categoria: string; qualidade: string | null
+  motivo: string | null; corpo: string; rodape: string | null; botoes: string[]
+}
+export interface NovoModelo { nome: string; idioma: string; categoria: 'MARKETING' | 'UTILITY'; corpo: string; exemplos: string[]; rodape: string; botoes: string[] }
+
+/** POST na função de campanhas (criar e apagar modelo). Devolve a mensagem da função quando ela explica o erro. */
+export async function postarCampanhas<T>(rota: string, corpo: unknown): Promise<T> {
+  const { data } = await supabase.auth.getSession()
+  if (!data.session) throw new Error('Sessão expirada. Entre de novo.')
+  const r = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/campanhas${rota}`, {
+    method: 'POST', headers: { Authorization: `Bearer ${data.session.access_token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(corpo),
+  })
+  const d = await r.json().catch(() => null)
+  if (!r.ok || !d?.ok) {
+    if (d?.motivo === 'incerto') throw new Error('A Meta não confirmou. Atualize a lista antes de tentar de novo: o modelo pode ter sido criado.')
+    throw new Error(d?.erro || (d?.motivo === 'nao_configurado' ? 'A Meta ainda não foi configurada no servidor (chaves e número).' : 'Não consegui falar com a Meta agora.'))
+  }
+  return d as T
+}
+
+export const ROTULO_STATUS_MODELO: Record<string, string> = {
+  APPROVED: 'Aprovado', PENDING: 'Em análise', REJECTED: 'Reprovado', PAUSED: 'Pausado', DISABLED: 'Desativado', IN_APPEAL: 'Em recurso', PENDING_DELETION: 'Sendo apagado', FLAGGED: 'Sinalizado',
+}
+export const COR_STATUS_MODELO: Record<string, string> = { APPROVED: 'success', PENDING: 'warning', IN_APPEAL: 'warning', REJECTED: 'danger', PAUSED: 'danger', DISABLED: 'danger', FLAGGED: 'danger' }

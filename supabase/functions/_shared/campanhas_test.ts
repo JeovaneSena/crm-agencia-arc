@@ -12,6 +12,7 @@ Deno.env.set('CAMPANHAS_WORKER_SECRET', 'segredo-do-trabalhador-com-mais-de-24-l
 
 import { classificarErroEnvio, ehOptOut, processarLote, tratarWebhook, type DepsCampanhas, type DepsWebhook, type Lote, type Resultado } from './campanhas.ts'
 import { ErroMeta } from './meta-api.ts'
+import { descreverModeloGestao, montarCriacaoDeModelo, type EntradaDeModelo } from './meta-protocolo.ts'
 import type { ModeloMeta } from './meta-protocolo.ts'
 
 function assert(v: unknown, m = 'Assertion failed'): asserts v { if (!v) throw new Error(m) }
@@ -206,4 +207,135 @@ Deno.test('rota: processar exige o segredo do trabalhador; modelos e conta exige
   assert((await chamada('/modelos')).status === 401)
   assert((await chamada('/conta')).status === 401)
   assert((await chamada('/inexistente')).status === 404)
+})
+
+// ---------- criar, listar e apagar modelos da Meta ----------
+
+const BASE: EntradaDeModelo = { nome: 'promo_outubro', idioma: 'pt_BR', categoria: 'MARKETING', corpo: 'Olá {{1}}, temos novidades em {{2}}. Quer ver?', exemplos: ['Maria', 'outubro'], rodape: 'Responda SAIR para parar', botoes: ['Quero ver', 'Agora não'] }
+const erroDe = (o: Partial<EntradaDeModelo>) => { const r = montarCriacaoDeModelo({ ...BASE, ...o }); return r.ok ? null : r.erro }
+
+Deno.test('modelo: monta o corpo que a Meta espera (corpo com exemplo, rodapé e respostas rápidas)', () => {
+  const r = montarCriacaoDeModelo(BASE)
+  assert(r.ok)
+  assert(JSON.stringify(r.corpo) === JSON.stringify({
+    name: 'promo_outubro', language: 'pt_BR', category: 'MARKETING',
+    components: [
+      { type: 'BODY', text: 'Olá {{1}}, temos novidades em {{2}}. Quer ver?', example: { body_text: [['Maria', 'outubro']] } },
+      { type: 'FOOTER', text: 'Responda SAIR para parar' },
+      { type: 'BUTTONS', buttons: [{ type: 'QUICK_REPLY', text: 'Quero ver' }, { type: 'QUICK_REPLY', text: 'Agora não' }] },
+    ],
+  }))
+  const simples = montarCriacaoDeModelo({ ...BASE, corpo: 'Seu horário está confirmado.', exemplos: [], rodape: '', botoes: [], categoria: 'UTILITY' })
+  assert(simples.ok && JSON.stringify(simples.corpo.components) === JSON.stringify([{ type: 'BODY', text: 'Seu horário está confirmado.' }]), 'sem variáveis: sem example')
+})
+
+Deno.test('modelo: recusa o que a Meta reprovaria, com a frase do que corrigir', () => {
+  assert(erroDe({ nome: 'Promo Outubro' })?.includes('minúsculas'))
+  assert(erroDe({ nome: '1promo' })?.includes('começa por letra'))
+  assert(erroDe({ idioma: 'klingon' })?.includes('Idioma'))
+  assert(erroDe({ categoria: 'AUTHENTICATION' as never })?.includes('Marketing ou Utilidade'))
+  assert(erroDe({ corpo: '   ' })?.includes('Escreva o texto'))
+  assert(erroDe({ corpo: 'x'.repeat(1025), exemplos: [] })?.includes('1024'))
+  assert(erroDe({ corpo: 'Olá {{nome}}', exemplos: [] })?.includes('numeradas'))
+  assert(erroDe({ corpo: 'Olá {{1}} e {{3}}', exemplos: ['a', 'b'] })?.includes('em sequência'))
+  assert(erroDe({ corpo: '{{1}}, temos novidades', exemplos: ['Maria'] })?.includes('começa ou termina'))
+  assert(erroDe({ corpo: 'Veja a oferta, {{1}}', exemplos: ['Maria'] })?.includes('começa ou termina'))
+  assert(erroDe({ corpo: 'Oi {{1}}{{2}} tudo', exemplos: ['a', 'b'] })?.includes('coladas'))
+  assert(erroDe({ exemplos: ['Maria'] })?.includes('exemplo para cada variável'))
+  assert(erroDe({ exemplos: ['Maria', ''] })?.includes('exemplo para cada variável'))
+  assert(erroDe({ corpo: 'Sem variável aqui.', exemplos: ['sobra'] })?.includes('não tem variáveis'))
+  assert(erroDe({ rodape: 'x'.repeat(61) })?.includes('rodapé'))
+  assert(erroDe({ rodape: 'Oi {{1}}' })?.includes('rodapé'))
+  assert(erroDe({ botoes: ['a', 'b', 'c', 'd'] })?.includes('no máximo 3'))
+  assert(erroDe({ botoes: ['x'.repeat(26)] })?.includes('25'))
+  assert(erroDe({ botoes: ['Sim', 'sim'] })?.includes('repetir'))
+})
+
+Deno.test('modelo: a descrição de gestão mostra qualquer categoria, o motivo da reprovação e os botões', () => {
+  const m = descreverModeloGestao({ id: '1', name: 'x', language: 'pt_BR', status: 'REJECTED', category: 'UTILITY', rejected_reason: 'INCORRECT_CATEGORY', quality_score: { score: 'GREEN' },
+    components: [{ type: 'BODY', text: 'Oi' }, { type: 'FOOTER', text: 'Rodapé' }, { type: 'BUTTONS', buttons: [{ type: 'QUICK_REPLY', text: 'Sim' }] }] })
+  assert(m.status === 'REJECTED' && m.motivo === 'INCORRECT_CATEGORY' && m.corpo === 'Oi' && m.rodape === 'Rodapé' && m.botoes.join() === 'Sim' && m.qualidade === 'GREEN')
+  assert(descreverModeloGestao({ id: '2', name: 'y', language: 'pt_BR', status: 'APPROVED', rejected_reason: 'NONE', components: [] }).motivo === null, 'NONE não é motivo')
+})
+
+interface ChamadaFalsa { url: string; metodo: string; corpo: string | null }
+async function comMeta(f: (chamadas: ChamadaFalsa[]) => Promise<void>, o: { graph?: (u: URL, m: string) => { status: number; corpo: unknown }; campanhasEmUso?: boolean; papel?: string } = {}) {
+  const original = globalThis.fetch, chamadas: ChamadaFalsa[] = []
+  globalThis.fetch = ((entrada: Request | URL | string, init?: RequestInit) => {
+    const u = new URL(typeof entrada === 'string' ? entrada : entrada instanceof URL ? entrada.href : entrada.url)
+    const metodo = init?.method ?? 'GET'
+    chamadas.push({ url: u.host + u.pathname + u.search, metodo, corpo: typeof init?.body === 'string' ? init.body : null })
+    let corpo: unknown = [], status = 200
+    if (u.pathname === '/auth/v1/user') corpo = { id: 'g1' }
+    else if (u.pathname.endsWith('/usuarios')) corpo = [{ papel: o.papel ?? 'gestor', ativo: true }]
+    else if (u.pathname.endsWith('/campanhas')) corpo = o.campanhasEmUso ? [{ id: 'c1' }] : []
+    else if (u.host === 'graph.facebook.com') { const g = o.graph?.(u, metodo) ?? { status: 200, corpo: { data: [] } }; status = g.status; corpo = g.corpo }
+    return Promise.resolve(new Response(JSON.stringify(corpo), { status, headers: { 'Content-Type': 'application/json' } }))
+  }) as typeof fetch
+  try { await f(chamadas) } finally { globalThis.fetch = original }
+}
+const gestor = { Authorization: 'Bearer tok', 'Content-Type': 'application/json' }
+
+Deno.test('rota modelos: criar, listar e apagar exigem gestor', async () => {
+  for (const [caminho, metodo] of [['/modelos/todos', 'GET'], ['/modelos', 'POST'], ['/modelos/apagar', 'POST']]) {
+    assert((await chamada(caminho, { method: metodo })).status === 401, `${metodo} ${caminho} sem sessão`)
+  }
+  await comMeta(async (chamadas) => {
+    for (const [caminho, metodo] of [['/modelos/todos', 'GET'], ['/modelos', 'POST'], ['/modelos/apagar', 'POST']]) {
+      const r = await chamada(caminho, { method: metodo, headers: gestor, body: metodo === 'POST' ? '{}' : undefined })
+      assert(r.status === 403, `${metodo} ${caminho} como consultor deveria ser 403, veio ${r.status}`)
+    }
+    assert(!chamadas.some((c) => c.url.startsWith('graph.facebook.com')), 'consultor chegou à Meta')
+  }, { papel: 'consultor' })
+})
+
+Deno.test('rota modelos: criar manda à Meta o corpo conferido; modelo inválido nem chega lá', async () => {
+  await comMeta(async (chamadas) => {
+    const ruim = await chamada('/modelos', { method: 'POST', headers: gestor, body: JSON.stringify({ ...BASE, nome: 'Nome Ruim' }) })
+    assert(ruim.status === 400 && (await ruim.json()).motivo === 'modelo_invalido')
+    assert(!chamadas.some((c) => c.url.startsWith('graph.facebook.com')), 'modelo inválido foi à Meta')
+    const ok = await chamada('/modelos', { method: 'POST', headers: gestor, body: JSON.stringify(BASE) })
+    const dados = await ok.json()
+    assert(ok.status === 200 && dados.ok && dados.id === 'mt1' && dados.status === 'PENDING', JSON.stringify(dados))
+    const g = chamadas.find((c) => c.url.startsWith('graph.facebook.com'))!
+    assert(g.url.startsWith('graph.facebook.com/v21.0/456/message_templates') && g.metodo === 'POST')
+    assert(JSON.parse(g.corpo!).name === 'promo_outubro' && JSON.parse(g.corpo!).components[0].example.body_text[0].join() === 'Maria,outubro')
+  }, { graph: () => ({ status: 200, corpo: { id: 'mt1', status: 'PENDING', category: 'MARKETING' } }) })
+})
+
+Deno.test('rota modelos: Meta recusando vira erro claro; falha no meio vira "incerto"', async () => {
+  await comMeta(async () => {
+    const r = await chamada('/modelos', { method: 'POST', headers: gestor, body: JSON.stringify(BASE) })
+    assert(r.status === 400 && (await r.json()).motivo === 'recusado_pela_meta')
+  }, { graph: () => ({ status: 400, corpo: { error: { code: 100 } } }) })
+  await comMeta(async () => {
+    const r = await chamada('/modelos', { method: 'POST', headers: gestor, body: JSON.stringify(BASE) })
+    assert(r.status === 502 && (await r.json()).motivo === 'incerto', 'erro 5xx na criação pode ter criado: incerto')
+  }, { graph: () => ({ status: 503, corpo: {} }) })
+})
+
+Deno.test('rota modelos: apagar chama DELETE pelo nome, mas recusa modelo usado por campanha em aberto', async () => {
+  await comMeta(async (chamadas) => {
+    const r = await chamada('/modelos/apagar', { method: 'POST', headers: gestor, body: JSON.stringify({ nome: 'promo_outubro' }) })
+    assert(r.status === 200)
+    const g = chamadas.find((c) => c.url.startsWith('graph.facebook.com'))!
+    assert(g.metodo === 'DELETE' && g.url.includes('/456/message_templates?name=promo_outubro') && g.corpo === null, 'DELETE pelo nome, sem corpo')
+    assert((await chamada('/modelos/apagar', { method: 'POST', headers: gestor, body: JSON.stringify({ nome: 'Nome; drop' }) })).status === 400)
+  }, { graph: () => ({ status: 200, corpo: { success: true } }) })
+  await comMeta(async (chamadas) => {
+    const r = await chamada('/modelos/apagar', { method: 'POST', headers: gestor, body: JSON.stringify({ nome: 'promo_outubro' }) })
+    assert(r.status === 409 && (await r.json()).motivo === 'em_uso')
+    assert(!chamadas.some((c) => c.url.startsWith('graph.facebook.com')), 'apagou na Meta um modelo em uso')
+  }, { campanhasEmUso: true })
+})
+
+Deno.test('rota modelos: a lista de gestão traz todas as categorias e estados', async () => {
+  await comMeta(async () => {
+    const r = await (await chamada('/modelos/todos', { headers: gestor })).json()
+    assert(r.ok && r.modelos.length === 2 && r.modelos.map((m: { status: string }) => m.status).join() === 'APPROVED,REJECTED')
+    assert(r.modelos[1].motivo === 'ABUSIVE_CONTENT' && r.modelos[0].categoria === 'UTILITY')
+  }, { graph: () => ({ status: 200, corpo: { data: [
+    { id: '1', name: 'a', language: 'pt_BR', status: 'APPROVED', category: 'UTILITY', components: [{ type: 'BODY', text: 'Oi' }] },
+    { id: '2', name: 'b', language: 'pt_BR', status: 'REJECTED', category: 'MARKETING', rejected_reason: 'ABUSIVE_CONTENT', components: [{ type: 'BODY', text: 'Oi' }] },
+  ] } }) })
 })
