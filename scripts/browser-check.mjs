@@ -40,6 +40,7 @@ const destinatarios = [
  {id:'d2',contato_id:'c2',whatsapp:'5511988888888',nome:'Joana',valores:{},apto:false,motivo_exclusao:'sem_consentimento',estado:'excluido',erro:null,tentativas:0},
  {id:'d3',contato_id:'c3',whatsapp:'5511977777777',nome:'Pedro',valores:{},apto:false,motivo_exclusao:'pediu_para_parar',estado:'excluido',erro:null,tentativas:0}]
 let consentimentoRegistrado=false
+let avisos=[{id:'av1',tipo:'conexao_caida',gravidade:'critico',titulo:'WhatsApp desconectado',detalhe:'Reconecte o número para voltar a receber mensagens.',rota:'/configuracoes',contato_id:null,somente_gestor:true,ocorrencias:3,criado_em:new Date().toISOString(),ultima_em:new Date().toISOString(),resolvido_em:null,resolucao:null},{id:'av2',tipo:'mensagem_presa',gravidade:'atencao',titulo:'Uma mensagem não saiu',detalhe:null,rota:'https://externo.example/phishing',contato_id:null,somente_gestor:false,ocorrencias:1,criado_em:new Date().toISOString(),ultima_em:new Date().toISOString(),resolvido_em:null,resolucao:null}]
 const browser = await chromium.launch({headless:true,args:['--no-sandbox']})
 const context = await browser.newContext({viewport:{width:1440,height:1000}})
 const errors=[]
@@ -47,7 +48,7 @@ const page = await context.newPage()
 page.on('pageerror',e=>errors.push(e.message))
 const dias = Array.from({length:7},(_,i)=>i)
 const tabelas = {
- contatos:()=>[lead], reunioes:()=>[meeting], profissionais:()=>[professional], catalogo_servicos:()=>services,
+ avisos:()=>avisos.filter(a=>!a.resolvido_em), contatos:()=>[lead], reunioes:()=>[meeting], profissionais:()=>[professional], catalogo_servicos:()=>services,
  oportunidades:()=>[opportunity], etapas_funil:()=>[], horario_comercial:()=>[],
  profissional_horarios:()=>dias.map(d=>({id:`h${d}`,profissional_id:professional.id,dia_semana:d,hora_inicio:'08:00',hora_fim:'18:00',ativo:true})),
  projetos:()=>[{id:'proj-1',contato_id:lead.id,oportunidade_id:opportunity.id,nome:'Projeto da venda inicial',etapa:'planejamento',prazo:null,escopo:'Escopo inicial',responsavel_id:null,created_at:now,updated_at:now,cliente:{nome:lead.nome,empresa:lead.empresa,status:lead.status},oportunidade:{nome:opportunity.nome,status:'ganho',cancelado_em:null}}],
@@ -93,7 +94,7 @@ try {
  assert(!proibido.test(await page.locator('body').innerText()),'Marca ou texto de nicho no login')
  await page.evaluate(({project,session})=>localStorage.setItem(`sb-${project}-auth-token`,JSON.stringify(session)),{project,session})
  // Núcleo apenas: sem VITE_MODULOS, módulos opcionais não aparecem no menu.
- const rotas=['/','/crm','/leads','/clientes','/servicos','/equipe','/agenda',`/leads/${lead.id}`,'/configuracoes','/usuarios']
+ const rotas=['/','/crm','/leads','/clientes','/servicos','/equipe','/agenda','/avisos',`/leads/${lead.id}`,'/configuracoes','/usuarios']
  for(const path of rotas){
   await page.goto(base+path)
   await page.waitForTimeout(600)
@@ -102,6 +103,21 @@ try {
   assert(!body.includes('Não consegui carregar'),`Falha de carregamento em ${path}`)
   console.log('PASS rota',path)
  }
+ // Central de avisos: contador na barra, ordem por gravidade, rota externa ignorada, dispensar chama a função do banco.
+ await page.goto(base+'/avisos')
+ await page.getByRole('heading',{name:'WhatsApp desconectado'}).waitFor()
+ assert.equal(await page.getByLabel('2 avisos abertos').count(),1,'contador da barra não mostra 2')
+ const titulos=await page.locator('main h2').allInnerTexts()
+ assert.deepEqual(titulos,['WhatsApp desconectado','Uma mensagem não saiu'],'avisos fora da ordem de gravidade')
+ assert.equal(await page.locator('main a[href^="http"]').count(),0,'rota externa virou link')
+ assert.equal(await page.getByRole('link',{name:'Ver',exact:true}).count(),1,'só o aviso com rota interna tem "Ver"')
+ let dispensado=null
+ await context.route('**/rest/v1/rpc/aviso_dispensar',async r=>{dispensado=r.request().postDataJSON();avisos=avisos.map(a=>a.id===dispensado.p_id?{...a,resolvido_em:new Date().toISOString(),resolucao:'manual'}:a);await r.fulfill({status:200,contentType:'application/json',body:''})})
+ await page.getByRole('button',{name:/Dispensar/}).first().click()
+ await page.waitForTimeout(500)
+ assert.equal(dispensado?.p_id,'av1','dispensar não chamou aviso_dispensar com o id')
+ assert.equal(await page.getByRole('heading',{name:'WhatsApp desconectado'}).count(),0,'aviso dispensado continuou na lista')
+ console.log('PASS avisos: contador, ordem, rota segura e dispensar')
  await page.goto(base+'/')
  const desligados=[...(comCampanhas?[]:['Campanhas']),...(comAssistente?[]:['Assistente comercial de IA']),...(comProjetos?[]:['Projetos']),...((comConversas||comAssistente||comCampanhas)?[]:['Conversas'])]
  for(const modulo of desligados)

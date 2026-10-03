@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import { NavLink, Link, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, KanbanSquare, MessagesSquare, ClipboardList, Bot, CalendarDays, BriefcaseBusiness, FolderKanban, Users, UserCheck, UsersRound, Settings, ChevronLeft, ChevronRight, ChevronUp, LogOut, Megaphone } from 'lucide-react'
+import { LayoutDashboard, KanbanSquare, MessagesSquare, ClipboardList, Bot, CalendarDays, BriefcaseBusiness, FolderKanban, Users, UserCheck, UsersRound, Settings, ChevronLeft, ChevronRight, ChevronUp, LogOut, Megaphone, Bell } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useSessao } from '../lib/sessao'
 import { AGENTE_PAGINA } from '../lib/agente'
 import { moduloAtivo, type Modulo } from '../lib/modulos'
+import { useAvisos } from '../lib/avisos'
 import { useMediaQuery } from '../lib/useMediaQuery'
 import { useFocusScope } from '../lib/useFocusScope'
 import SeletorTema from './SeletorTema'
@@ -36,6 +37,7 @@ const NAV_GROUPS: { label: string; items: ItemNav[] }[] = [
       { to: '/conversas', label: 'Conversas', icon: MessagesSquare, modulo: 'conversas' },
       { to: '/campanhas', label: 'Campanhas', icon: Megaphone, modulo: 'campanhas' },
       { to: '/agenda', label: 'Agenda', icon: CalendarDays },
+      { to: '/avisos', label: 'Avisos', icon: Bell },
       { to: '/leads', label: 'Leads', icon: Users, end: true },
       { to: '/clientes', label: 'Clientes', icon: UserCheck },
     ],
@@ -58,6 +60,9 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const collapsed = recolhida && !mobile
   const { usuario, gestor } = useSessao()
   const navigate = useNavigate()
+  const { avisos } = useAvisos()
+  const abertos = avisos.length
+  const urgentes = avisos.some(a => a.gravidade === 'critico')
 
   // O menu do rodapé. Fecha ao clicar fora, com Esc, e ao escolher um item —
   // não precisa de efeito escutando a rota: sair dele por qualquer caminho
@@ -92,6 +97,7 @@ export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         {!collapsed && <div className="nav-group-label">{grupo.label}</div>}
         {grupo.items.filter(item => (!item.gestor || gestor) && (!item.modulo || moduloAtivo(item.modulo))).map(({ to, label, icon: Icon, end }) => <NavLink key={to} to={to} end={end} aria-label={label} title={collapsed ? label : undefined} onClick={onNavigate} className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
           <Icon size={19} strokeWidth={1.8} />{!collapsed && <span>{label}</span>}
+          {to === '/avisos' && abertos > 0 && <span className={`nav-badge${urgentes ? ' nav-badge-urgente' : ''}`} aria-label={`${abertos} ${abertos === 1 ? 'aviso aberto' : 'avisos abertos'}`}>{abertos > 99 ? '99+' : abertos}</span>}
         </NavLink>)}
       </div>)}
     </nav>

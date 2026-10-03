@@ -20,6 +20,7 @@ import Campanhas from './pages/Campanhas'
 import NovaCampanha from './pages/NovaCampanha'
 import CampanhaDetalhe from './pages/CampanhaDetalhe'
 import Usuarios from './pages/Usuarios'
+import Avisos from './pages/Avisos'
 import { moduloAtivo } from './lib/modulos'
 
 export default function App() {
@@ -40,6 +41,7 @@ export default function App() {
             {moduloAtivo('campanhas') && <Route path="/campanhas/:id/editar" element={<NovaCampanha />} />}
             {moduloAtivo('campanhas') && <Route path="/campanhas/:id" element={<CampanhaDetalhe />} />}
             <Route path="/agenda" element={<Agenda />} />
+            <Route path="/avisos" element={<Avisos />} />
             {moduloAtivo('projetos') && <Route path="/projetos" element={<Projetos />} />}
             <Route path="/equipe" element={<Profissionais />} />
             <Route path="/servicos" element={<Procedimentos />} />

@@ -715,3 +715,9 @@ svg { flex-shrink: 0; }
   .equipe-resumo button:first-child { grid-column: 1 / -1; }
   .equipe-acoes { justify-content: flex-start; }
 }
+
+/* Contador de avisos abertos na barra lateral. */
+.nav-badge { margin-left: auto; min-width: 20px; padding: 1px 6px; border-radius: 999px; background: var(--warning); color: #fff; font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; }
+.nav-badge-urgente { background: var(--danger-solid); }
+.collapsed .nav-badge { position: absolute; margin: -22px 0 0 18px; }
+.collapsed .nav-link { position: relative; }
