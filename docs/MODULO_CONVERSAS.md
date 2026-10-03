@@ -15,6 +15,14 @@ não aparecem.
   `proxima_reuniao`. `conversas_config` — provedor (hoje `uazapi`).
 - Bucket privado `midias-whatsapp` (URL assinada); realtime em `mensagens_whatsapp`.
 
+## Retenção de mídia (`database/base/0012_retencao_de_midia.sql`)
+Fotos, áudios e documentos ficam no bucket `midias-whatsapp`, e o plano gratuito do Supabase tem 1 GB.
+O gestor define em **Configurações → Empresa → Arquivos das conversas** por quanto tempo guardá-los
+(3 meses a 2 anos; mínimo de 30 dias). **Desligado de fábrica** ("para sempre"), porque apagar é
+irreversível; ligar ou encurtar o prazo exige confirmar. Passado o prazo, o vigia apaga o arquivo do
+Storage em lotes de 50 por rodada; a mensagem e a transcrição ficam, e a conversa mostra "Arquivo
+removido pela retenção de dados". Se o Storage falhar, nada é marcado e a rodada seguinte tenta de novo.
+
 ## Função (`supabase/functions/whatsapp`)
 Rotas: webhook (`POST /`), `/enviar`, `/conexao`, `/conexao/conectar|desconectar`,
 `/foto`, `/apagar-pessoa` (só gestor), `/vigiar` (o vigia, ver abaixo). Secrets: `WEBHOOK_SEGREDO`, `VIGIA_SEGREDO`, `UAZAPI_API_URL`,
@@ -33,6 +41,7 @@ sozinho e abre ou fecha avisos na Central (`/avisos`, migração 0011):
 - **WhatsApp caído**: a conexão uazapi lida duas vezes com 10 s de intervalo; só uma queda confirmada
   abre o aviso (crítico). Com a Meta oficial como provedor, nada a vigiar.
 - **assistente esquecido em modo de teste** há 3+ dias (só o gestor vê). Sem o módulo assistente, ignorado.
+- **retenção de mídia**: se o gestor definiu um prazo, apaga os arquivos vencidos (ver acima).
 - a cada hora, apaga avisos resolvidos há mais de 90 dias.
 
 Agende `node scripts/vigia-worker.mjs` a cada 5 minutos, com `SUPABASE_URL` e `VIGIA_SEGREDO` no ambiente

@@ -40,6 +40,7 @@ const destinatarios = [
  {id:'d2',contato_id:'c2',whatsapp:'5511988888888',nome:'Joana',valores:{},apto:false,motivo_exclusao:'sem_consentimento',estado:'excluido',erro:null,tentativas:0},
  {id:'d3',contato_id:'c3',whatsapp:'5511977777777',nome:'Pedro',valores:{},apto:false,motivo_exclusao:'pediu_para_parar',estado:'excluido',erro:null,tentativas:0}]
 let consentimentoRegistrado=false
+let retencao=null
 let avisos=[{id:'av1',tipo:'conexao_caida',gravidade:'critico',titulo:'WhatsApp desconectado',detalhe:'Reconecte o número para voltar a receber mensagens.',rota:'/configuracoes',contato_id:null,somente_gestor:true,ocorrencias:3,criado_em:new Date().toISOString(),ultima_em:new Date().toISOString(),resolvido_em:null,resolucao:null},{id:'av2',tipo:'mensagem_presa',gravidade:'atencao',titulo:'Uma mensagem não saiu',detalhe:null,rota:'https://externo.example/phishing',contato_id:null,somente_gestor:false,ocorrencias:1,criado_em:new Date().toISOString(),ultima_em:new Date().toISOString(),resolvido_em:null,resolucao:null}]
 const browser = await chromium.launch({headless:true,args:['--no-sandbox']})
 const context = await browser.newContext({viewport:{width:1440,height:1000}})
@@ -57,9 +58,9 @@ const tabelas = {
  marketing_consentimentos:()=>consentimentoRegistrado?[{contato_id:lead.id,ativo:true,consentido_em:now,revogado_em:null,fonte:'pediu pelo WhatsApp'}]:[],
  assistente_config:()=>[{id:true,modo:'desligada',nome:'Assistente',modelo:'claude-sonnet-5-5',instrucoes:null,numeros_teste:[],max_respostas:12,espera_segundos:6,updated_by:null,updated_at:now}],
  assistente_respostas:()=>[{mensagem_id:'r1',contato_id:lead.id,estado:'ignorada',motivo:'ia_desligada',created_at:now},{mensagem_id:'r2',contato_id:lead.id,estado:'falhou',motivo:'erro_interno',created_at:now}],
- conversas_config:()=>[{id:true,provedor:'uazapi'}],
+ conversas_config:()=>[{id:true,provedor:'uazapi',retencao_midia_dias:retencao}],
  conversas_lista:()=>[{contato_id:lead.id,nome:lead.nome,whatsapp:lead.whatsapp,status:'novo_lead',assumida:false,assumido_por:null,assumido_em:null,assumido_por_nome:null,ultimo_conteudo:'Quero saber mais',ultimo_tipo:'texto',ultimo_autor:'cliente',ultima_em:now,nao_lidas:1,proxima_reuniao:null,...(comAssistente?{ia_ligada:false,ia_encaminhada_em:now,ia_resumo:'Quer fechar a proposta hoje'}:{})}],
- mensagens_whatsapp:()=>[{id:'m1',contato_id:lead.id,autor:'cliente',tipo:'texto',conteudo:'Quero saber mais',midia_url:null,id_externo:'e1',provedor:'uazapi',lida:false,criada_em:now},{id:'m2',contato_id:lead.id,autor:'atendente',tipo:'texto',conteudo:'Claro, como posso ajudar?',midia_url:null,id_externo:'e2',provedor:'uazapi',estado_envio:'enviado',lida:true,criada_em:now}],
+ mensagens_whatsapp:()=>[{id:'m1',contato_id:lead.id,autor:'cliente',tipo:'texto',conteudo:'Quero saber mais',midia_url:null,id_externo:'e1',provedor:'uazapi',lida:false,criada_em:now},{id:'m2',contato_id:lead.id,autor:'atendente',tipo:'texto',conteudo:'Claro, como posso ajudar?',midia_url:null,id_externo:'e2',provedor:'uazapi',estado_envio:'enviado',lida:true,criada_em:now},{id:'m3',contato_id:lead.id,autor:'cliente',tipo:'imagem',conteudo:null,midia_url:null,midia_removida_em:now,id_externo:'e3',provedor:'uazapi',lida:true,criada_em:now}],
  profissional_bloqueios:()=>[], oportunidade_eventos:()=>[], contatos_dados:()=>[],
  usuarios:()=>[{...user,nome:'Equipe Teste',papel,ativo:true,avatar_url:null,profissional_id:null,convidado_em:null,ultimo_acesso_em:null}],
  configuracoes_negocio:()=>[{id:'config',nome_negocio:'Empresa Teste',logo_url:null,fuso_horario:'America/Sao_Paulo'}],
@@ -138,6 +139,21 @@ try {
   await page.waitForTimeout(500)
   assert(enviado?.contato_id===lead.id&&enviado?.texto==='Mensagem de teste'&&enviado?.pedido_id,'envio não chegou à função com contato_id, texto e pedido_id')
   console.log('PASS conversas: lista, mensagens e envio')
+  // Arquivo apagado pela retenção: a conversa explica em vez de ficar em branco.
+  assert(corpo.includes('Arquivo removido pela retenção de dados.'),'conversa sem o aviso de arquivo removido')
+  // Retenção de mídia: ligar um prazo exige confirmar que apagar não tem volta; o prazo vai ao banco como número.
+  let prazo=null
+  await context.route('**/rest/v1/conversas_config?*',async r=>{if(r.request().method()!=='PATCH')return r.fallback();prazo=r.request().postDataJSON();retencao=prazo.retencao_midia_dias;await r.fulfill({status:200,contentType:'application/json',body:JSON.stringify([{retencao_midia_dias:retencao}])})})
+  await page.goto(base+'/configuracoes')
+  await page.getByRole('button',{name:'Empresa'}).click()
+  await page.getByLabel('Guardar por').selectOption('180')
+  const salvarPrazo=page.getByRole('button',{name:'Salvar prazo'})
+  assert(await salvarPrazo.isDisabled(),'salvar deveria esperar a confirmação')
+  await page.getByRole('checkbox',{name:/não podem ser recuperados/}).check()
+  await salvarPrazo.click()
+  await page.getByText('Prazo salvo.').waitFor()
+  assert(prazo?.retencao_midia_dias===180,'o prazo não chegou ao banco como 180')
+  console.log('PASS conversas: retenção de mídia')
  }
  if(comAssistente){
   // Módulo assistente: conversa encaminhada à equipe, botão de ligar/desligar e tela de configuração.

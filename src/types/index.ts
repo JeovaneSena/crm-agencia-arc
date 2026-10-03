@@ -264,6 +264,8 @@ export interface MensagemWhatsapp {
   conteudo: string | null
   /** Caminho no bucket privado `midias-whatsapp`. Abrir com signed URL. */
   midia_url: string | null
+  /** Preenchido quando a retenção de mídia apagou o arquivo (`midia_url` fica nulo). */
+  midia_removida_em?: string | null
   /** Id externo da mensagem no provedor. Único — impede duplicata em reenvio. */
   id_externo: string | null
   provedor?: 'meta' | 'uazapi' | 'legado'

@@ -254,6 +254,14 @@ function depsDoVigia(): DepsVigia {
       if (provedor !== 'uazapi' || !UAZAPI.configurada()) return null
       return (await UAZAPI.estadoDaConexao()).estado
     },
+    async removerMidiasVencidas() {
+      // Arquivo primeiro, registro depois: se o Storage falhar nada é marcado e a próxima rodada tenta de novo.
+      const vencidas = await rpc<{ id: string; midia_url: string }[]>('midias_vencidas', { p_limite: 50 })
+      if (!vencidas?.length) return 0
+      await apagarMidias(vencidas.map((m) => m.midia_url))
+      await rpc('midias_marcar_removidas', { p_ids: vencidas.map((m) => m.id) })
+      return vencidas.length
+    },
     async assistente() {
       try {
         const c = (await selecionar<{ modo: string; updated_at: string }>('assistente_config?select=modo,updated_at&limit=1'))[0]

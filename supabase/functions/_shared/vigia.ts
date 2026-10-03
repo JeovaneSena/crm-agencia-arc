@@ -10,7 +10,8 @@
  *   2. WhatsApp caído: a conexão não está de pé, medida duas vezes para não acusar um piscar.
  *   3. assistente em modo de teste há dias: o canal "funciona", as mensagens chegam e a IA
  *      nunca responde ninguém fora da lista. É o esquecimento mais caro e mais silencioso.
- *   4. faxina dos avisos antigos, uma vez por hora.
+ *   4. retenção de mídia: se o gestor definiu um prazo, apaga do Storage os arquivos mais velhos que ele.
+ *   5. faxina dos avisos antigos, uma vez por hora.
  *
  * Só lógica: banco, WhatsApp e relógio entram por `DepsVigia`. Cada verificação é isolada:
  * uma que falha não impede as outras, e o resultado diz quais falharam.
@@ -40,12 +41,15 @@ export interface DepsVigia {
   estadoDaConexao(): Promise<string | null>
   /** Modo do assistente e desde quando, ou `null` se o módulo não está instalado. */
   assistente(): Promise<{ modo: string; desde: Date } | null>
+  /** Apaga do Storage (e registra) um lote de arquivos vencidos. Sem prazo definido, não faz nada. Devolve quantos. */
+  removerMidiasVencidas(): Promise<number>
 }
 
 export interface ResultadoDoVigia {
   mensagensPresas: number
   conexao: 'ok' | 'caida' | 'nao_vigiada' | 'oscilou'
   assistenteEmTeste: boolean
+  midiasRemovidas: number
   avisosApagados: number
   erros: string[]
 }
@@ -101,13 +105,14 @@ async function vigiarAssistente(deps: DepsVigia): Promise<boolean> {
 }
 
 export async function vigiar(deps: DepsVigia, expurgarAvisos: () => Promise<number>): Promise<ResultadoDoVigia> {
-  const r: ResultadoDoVigia = { mensagensPresas: 0, conexao: 'nao_vigiada', assistenteEmTeste: false, avisosApagados: 0, erros: [] }
+  const r: ResultadoDoVigia = { mensagensPresas: 0, conexao: 'nao_vigiada', assistenteEmTeste: false, midiasRemovidas: 0, avisosApagados: 0, erros: [] }
   const passo = async (nome: string, f: () => Promise<void>) => {
     try { await f() } catch (e) { r.erros.push(nome); console.error(`vigia: ${nome}:`, e instanceof Error ? e.message.slice(0, 160) : 'erro') }
   }
   await passo('mensagens', async () => { r.mensagensPresas = await vigiarMensagens(deps) })
   await passo('conexao', async () => { r.conexao = await vigiarConexao(deps) })
   await passo('assistente', async () => { r.assistenteEmTeste = await vigiarAssistente(deps) })
+  await passo('midias', async () => { r.midiasRemovidas = await deps.removerMidiasVencidas() })
   // A faxina custa uma consulta e não precisa de pressa: uma vez por hora, nos primeiros 5 minutos.
   if (deps.agora().getUTCMinutes() < 5) await passo('faxina', async () => { r.avisosApagados = await expurgarAvisos() })
   return r

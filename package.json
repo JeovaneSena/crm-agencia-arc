@@ -32,6 +32,8 @@
     "test:avisos": "npx --yes deno@2 test --allow-env supabase/functions/_shared/avisos_test.ts",
     "test:avisos:db:rehearsal": "node scripts/base-migrar.mjs rehearse database/base/0011_central_de_avisos.sql database/base/0011_check.sql",
     "test:avisos:db:apply": "node scripts/base-migrar.mjs apply database/base/0011_central_de_avisos.sql database/base/0011_check.sql --confirm",
+    "test:retencao:db:rehearsal": "node scripts/base-migrar.mjs rehearse database/base/0012_retencao_de_midia.sql database/base/0012_check.sql",
+    "test:retencao:db:apply": "node scripts/base-migrar.mjs apply database/base/0012_retencao_de_midia.sql database/base/0012_check.sql --confirm",
     "test:projetos:db:rehearsal": "node scripts/base-migrar.mjs rehearse database/base/0008_modulo_projetos.sql database/base/0008_check.sql",
     "test:projetos:db:apply": "node scripts/base-migrar.mjs apply database/base/0008_modulo_projetos.sql database/base/0008_check.sql --confirm",
     "test:ui:projetos": "node scripts/browser-check.mjs --projetos",

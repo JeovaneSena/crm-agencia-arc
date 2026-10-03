@@ -7,7 +7,7 @@ function assert(v: unknown, m = 'Assertion failed'): asserts v { if (!v) throw n
 interface Chamada { nome: string; args: Record<string, unknown> }
 function falso(o: {
   agora?: string; presas?: MensagemPresa[]; leituras?: (string | null)[]; assistente?: { modo: string; desde: string } | null
-  quebrar?: 'mensagens' | 'conexao' | 'assistente'
+  quebrar?: 'mensagens' | 'conexao' | 'assistente' | 'midias'; midias?: number
 } = {}) {
   const f = { chamadas: [] as Chamada[], marcadas: [] as string[], esperas: [] as number[], antesDe: null as Date | null }
   const leituras = [...(o.leituras ?? ['conectado'])]
@@ -19,6 +19,7 @@ function falso(o: {
     mensagensPendentes: (antes) => { f.antesDe = antes; if (o.quebrar === 'mensagens') return Promise.reject(new Error('banco fora')); return Promise.resolve(o.presas ?? []) },
     marcarIncertas: (ids) => { f.marcadas.push(...ids); return Promise.resolve() },
     estadoDaConexao: () => { if (o.quebrar === 'conexao') return Promise.reject(new Error('uazapi fora')); return Promise.resolve(leituras.length > 1 ? leituras.shift()! : leituras[0]) },
+    removerMidiasVencidas: () => { if (o.quebrar === 'midias') return Promise.reject(new Error('storage fora')); return Promise.resolve(o.midias ?? 0) },
     assistente: () => { if (o.quebrar === 'assistente') return Promise.reject(new Error('banco fora')); return Promise.resolve(o.assistente ? { modo: o.assistente.modo, desde: new Date(o.assistente.desde) } : null) },
   }
   const abertos = () => f.chamadas.filter((c) => c.nome === 'aviso_abrir').map((c) => c.args)
@@ -113,4 +114,12 @@ Deno.test('faxina dos avisos antigos: só na primeira janela de cada hora', asyn
   assert(tarde.avisosApagados === 0 && chamadas === 1)
   const quebrada = await vigiar(falso({ agora: '2026-10-03T15:01:00Z' }).deps, () => Promise.reject(new Error('x')))
   assert(quebrada.erros.join() === 'faxina')
+})
+
+Deno.test('retenção de mídia: o vigia conta o que foi removido e uma falha dela não derruba o resto', async () => {
+  const ok = await vigiar(falso({ midias: 7 }).deps, semFaxina)
+  assert(ok.midiasRemovidas === 7 && ok.erros.length === 0)
+  const t = falso({ quebrar: 'midias', leituras: ['desconectado', 'desconectado'] })
+  const r = await vigiar(t.deps, semFaxina)
+  assert(r.erros.join() === 'midias' && r.conexao === 'caida' && r.midiasRemovidas === 0)
 })

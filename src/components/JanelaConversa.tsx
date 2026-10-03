@@ -95,6 +95,9 @@ function Balao({ mensagem, mostrarAutor }: { mensagem: MensagemWhatsapp; mostrar
             <Midia mensagem={mensagem} />
           </div>
         )}
+        {!temMidia && !!mensagem.midia_removida_em && mensagem.tipo !== 'texto' && (
+          <div style={{ fontSize: 11.5, opacity: 0.75, marginBottom: mensagem.conteudo ? 7 : 2 }}>Arquivo removido pela retenção de dados.</div>
+        )}
 
         {mensagem.erro_envio && <p role="status" style={{color:'var(--danger)',fontSize:12}}>{mensagem.erro_envio}</p>}
         {mensagem.conteudo && (

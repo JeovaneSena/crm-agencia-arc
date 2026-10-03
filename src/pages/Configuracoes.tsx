@@ -10,6 +10,8 @@ import { supabase } from '../lib/supabase'
 import type { Usuario, ConfiguracoesNegocio, HorarioComercial } from '../types'
 import TabEmpresa from '../components/TabEmpresa'
 import TabFunil from '../components/TabFunil'
+import RetencaoDeMidia from '../components/RetencaoDeMidia'
+import { moduloAtivo } from '../lib/modulos'
 import ConfirmDeleteModal from '../components/ConfirmDeleteModal'
 import { useAgente } from '../lib/agente'
 
@@ -789,7 +791,7 @@ export default function Configuracoes() {
       {/* Tab content */}
       <div className="fade-in-3">
         {activeTab === 'perfil' && userId && <TabPerfil userId={userId} />}
-        {activeTab === 'empresa' && <TabEmpresa />}
+        {activeTab === 'empresa' && <><TabEmpresa />{moduloAtivo('conversas') && <RetencaoDeMidia />}</>}
         {activeTab === 'funil' && <TabFunil />}
         {activeTab === 'horarios' && <TabHorarios />}
       </div>
