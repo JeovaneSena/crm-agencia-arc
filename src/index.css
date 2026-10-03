@@ -747,3 +747,11 @@ svg { flex-shrink: 0; }
 .composer-tabs button[aria-selected='true'] { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
 .composer-hint { margin: 0 0 6px; font-size: 12px; color: var(--warning); }
 
+/* Transferir conversa: seletor e botão no cabeçalho. */
+.transfer-box { display: inline-flex; gap: 4px; flex-shrink: 0; }
+.transfer-box select { max-width: 150px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font: 12px var(--font-body); }
+.transfer-box button { padding: 6px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font: 600 12px var(--font-body); cursor: pointer; }
+.transfer-box button:disabled { opacity: .5; cursor: not-allowed; }
+
+.snooze-select { flex-shrink: 0; max-width: 120px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font: 12px var(--font-body); }
+

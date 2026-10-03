@@ -59,3 +59,28 @@ Deno.test('notas: entram na conversa na ordem do tempo, depois da mensagem do me
   eq(mesclarConversa([], []), [])
 })
 
+// ---------- adiar conversa ----------
+import { estaAdiada, opcoesDeAdiamento } from '../../src/lib/adiar.ts'
+Deno.test('adiar: as opções são futuras, em ordem, e "segunda" nunca é hoje', () => {
+  // quarta-feira, 15h
+  const quarta = new Date(2026, 9, 7, 15, 0, 0)
+  const o = opcoesDeAdiamento(quarta)
+  eq(o.map((x) => x.id), ['1h', '3h', 'amanha', '3d', 'segunda'])
+  assert(o.every((x) => x.ate.getTime() > quarta.getTime()), 'todas no futuro')
+  assert(o.every((x, i) => i === 0 || x.ate.getTime() >= o[i - 1].ate.getTime()), 'em ordem')
+  eq([o[2].ate.getDate(), o[2].ate.getHours()], [8, 9]); eq([o[3].ate.getDate(), o[3].ate.getHours()], [10, 9])
+  eq([o[4].ate.getDay(), o[4].ate.getDate()], [1, 12])
+  // segunda-feira: a "segunda" é a próxima, não hoje; domingo: é amanhã
+  eq(opcoesDeAdiamento(new Date(2026, 9, 5, 8, 0, 0))[4].ate.getDate(), 12)
+  eq(opcoesDeAdiamento(new Date(2026, 9, 4, 23, 30, 0))[4].ate.getDate(), 5)
+  // virada de mês
+  const fim = opcoesDeAdiamento(new Date(2026, 9, 31, 20, 0, 0))
+  eq([fim[2].ate.getMonth(), fim[2].ate.getDate()], [10, 1])
+})
+Deno.test('adiar: só está adiada com data no futuro', () => {
+  const agora = Date.parse('2026-10-03T12:00:00Z')
+  eq(estaAdiada({ adiada_ate: '2026-10-03T13:00:00Z' }, agora), true)
+  eq(estaAdiada({ adiada_ate: '2026-10-03T11:00:00Z' }, agora), false)
+  eq(estaAdiada({ adiada_ate: null }, agora), false); eq(estaAdiada({}, agora), false)
+})
+

@@ -169,3 +169,19 @@ Deno.test('vigia: mensagem pendente antiga vira incerta e abre o aviso; o corte 
     assert((aviso.corpo as Record<string, unknown>).p_tipo === 'mensagem_presa' && (aviso.corpo as Record<string, unknown>).p_contato_id === ID)
   } finally { restaurar() }
 })
+
+Deno.test('envio: conversa assumida por outra pessoa é recusada; a própria e a livre passam', async () => {
+  falso(); comSessao({ papel: 'consultor', ativo: true })
+  try {
+    const com = (assumido_por: string | null) => {
+      respostas = (u) => u.pathname === '/auth/v1/user' ? { id: 'user-1' } : u.pathname.endsWith('/usuarios') ? [{ papel: 'consultor', ativo: true }]
+        : u.pathname.endsWith('/contatos_dados') ? [{ whatsapp: '5511999990000', assumido_por }] : u.pathname.endsWith('/mensagens_whatsapp') ? [{ id: 'm1' }] : []
+    }
+    com('outro-usuario'); chamadas.length = 0
+    const negado = await post('/enviar', { contato_id: ID, texto: 'oi', pedido_id: PEDIDO }, auth)
+    assert(negado.status === 409 && (await negado.json()).motivo === 'conversa_com_outra_pessoa')
+    assert(!chamadas.some((c) => c.metodo === 'POST'), 'gravou ou enviou apesar do dono ser outro')
+    com('user-1'); assert((await post('/enviar', { contato_id: ID, texto: 'oi', pedido_id: PEDIDO }, auth)).status === 200, 'o dono não conseguiu enviar')
+    com(null); assert((await post('/enviar', { contato_id: ID, texto: 'oi', pedido_id: PEDIDO }, auth)).status === 200, 'conversa livre deveria enviar')
+  } finally { restaurar() }
+})

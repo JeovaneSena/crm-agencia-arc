@@ -380,6 +380,8 @@ export interface ConversaResumo {
   nao_lidas: number
   /** A próxima reunião agendada no futuro. Nula = sem reunião marcada. Não use `status` para isso. */
   proxima_reuniao: string | null
+  /** Até quando a conversa está adiada (migração 0016). Nulo ou passado = na fila. */
+  adiada_ate?: string | null
   /** Só existem com o módulo assistente (migração 0009). */
   ia_ligada?: boolean
   /** Quando o assistente passou a conversa para a equipe; limpo ao concluir. */

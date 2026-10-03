@@ -136,8 +136,11 @@ async function rotaEnviar(req: Request): Promise<Response> {
   const pedido = String(corpo.pedido_id ?? '')
   if (!UUID.test(contatoId) || !UUID.test(pedido) || !texto || texto.length > 4096) return json({ ok: false, motivo: 'dados_invalidos' }, 400)
 
-  const whatsapp = (await selecionar<{ whatsapp: string | null }>(`contatos_dados?select=whatsapp&id=eq.${contatoId}&limit=1`))[0]?.whatsapp
+  const contato = (await selecionar<{ whatsapp: string | null; assumido_por: string | null }>(`contatos_dados?select=whatsapp,assumido_por&id=eq.${contatoId}&limit=1`))[0]
+  const whatsapp = contato?.whatsapp
   if (!whatsapp) return json({ ok: false, motivo: 'contato_sem_whatsapp' }, 400)
+  // Conversa com dono: só ele escreve. Quem quiser falar assume (ou o gestor toma) antes; assim dois não respondem juntos.
+  if (contato.assumido_por && contato.assumido_por !== usuario.id) return json({ ok: false, motivo: 'conversa_com_outra_pessoa' }, 409)
 
   // Reserva primeiro, envia depois: um duplo clique ou reenvio do navegador
   // bate no mesmo `pedido_id` e nunca manda a mensagem duas vezes.
@@ -253,6 +256,10 @@ function depsDoVigia(): DepsVigia {
       const provedor = (await selecionar<{ provedor: string }>('conversas_config?select=provedor&limit=1'))[0]?.provedor
       if (provedor !== 'uazapi' || !UAZAPI.configurada()) return null
       return (await UAZAPI.estadoDaConexao()).estado
+    },
+    async reabrirAdiadas() {
+      const v = await rpc<{ contato_id: string; nome: string | null }[]>('conversas_adiadas_vencidas', {})
+      return (v ?? []).map((x) => ({ contatoId: x.contato_id, nome: x.nome }))
     },
     async removerMidiasVencidas() {
       // Arquivo primeiro, registro depois: se o Storage falhar nada é marcado e a próxima rodada tenta de novo.

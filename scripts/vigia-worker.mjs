@@ -18,7 +18,7 @@ try {
   })
   const corpo = await r.json().catch(() => null)
   if (!corpo || (r.status !== 200 && r.status !== 500)) throw Error(`http ${r.status}${corpo?.motivo ? ` (${corpo.motivo})` : ''}`)
-  console.log(`Vigia: ${corpo.mensagensPresas} mensagem(ns) presa(s), conexão ${corpo.conexao}, assistente em teste: ${corpo.assistenteEmTeste ? 'sim' : 'não'}, ${corpo.midiasRemovidas} arquivo(s) vencido(s) removido(s), ${corpo.avisosApagados} aviso(s) antigo(s) apagado(s).`)
+  console.log(`Vigia: ${corpo.mensagensPresas} mensagem(ns) presa(s), conexão ${corpo.conexao}, assistente em teste: ${corpo.assistenteEmTeste ? 'sim' : 'não'}, ${corpo.adiadasQueVoltaram} conversa(s) adiada(s) de volta, ${corpo.midiasRemovidas} arquivo(s) vencido(s) removido(s), ${corpo.avisosApagados} aviso(s) antigo(s) apagado(s).`)
   if (corpo.erros?.length) throw Error(`verificação com erro: ${corpo.erros.join(', ')} (veja o log da função)`)
 } catch (e) {
   console.error(`Falha no vigia: ${e.message}. Confira a publicação da função whatsapp e o segredo VIGIA_SEGREDO.`)

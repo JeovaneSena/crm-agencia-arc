@@ -7,7 +7,7 @@ function assert(v: unknown, m = 'Assertion failed'): asserts v { if (!v) throw n
 interface Chamada { nome: string; args: Record<string, unknown> }
 function falso(o: {
   agora?: string; presas?: MensagemPresa[]; leituras?: (string | null)[]; assistente?: { modo: string; desde: string } | null
-  quebrar?: 'mensagens' | 'conexao' | 'assistente' | 'midias'; midias?: number
+  quebrar?: 'mensagens' | 'conexao' | 'assistente' | 'midias' | 'adiadas'; midias?: number; adiadas?: { contatoId: string; nome: string | null }[]
 } = {}) {
   const f = { chamadas: [] as Chamada[], marcadas: [] as string[], esperas: [] as number[], antesDe: null as Date | null }
   const leituras = [...(o.leituras ?? ['conectado'])]
@@ -19,6 +19,7 @@ function falso(o: {
     mensagensPendentes: (antes) => { f.antesDe = antes; if (o.quebrar === 'mensagens') return Promise.reject(new Error('banco fora')); return Promise.resolve(o.presas ?? []) },
     marcarIncertas: (ids) => { f.marcadas.push(...ids); return Promise.resolve() },
     estadoDaConexao: () => { if (o.quebrar === 'conexao') return Promise.reject(new Error('uazapi fora')); return Promise.resolve(leituras.length > 1 ? leituras.shift()! : leituras[0]) },
+    reabrirAdiadas: () => { if (o.quebrar === 'adiadas') return Promise.reject(new Error('banco fora')); return Promise.resolve(o.adiadas ?? []) },
     removerMidiasVencidas: () => { if (o.quebrar === 'midias') return Promise.reject(new Error('storage fora')); return Promise.resolve(o.midias ?? 0) },
     assistente: () => { if (o.quebrar === 'assistente') return Promise.reject(new Error('banco fora')); return Promise.resolve(o.assistente ? { modo: o.assistente.modo, desde: new Date(o.assistente.desde) } : null) },
   }
@@ -122,4 +123,19 @@ Deno.test('retenção de mídia: o vigia conta o que foi removido e uma falha de
   const t = falso({ quebrar: 'midias', leituras: ['desconectado', 'desconectado'] })
   const r = await vigiar(t.deps, semFaxina)
   assert(r.erros.join() === 'midias' && r.conexao === 'caida' && r.midiasRemovidas === 0)
+})
+
+Deno.test('conversa adiada que venceu: volta e abre um aviso por contato, com link para a conversa', async () => {
+  const t = falso({ adiadas: [{ contatoId: 'c1', nome: ' Maria ' }, { contatoId: 'c2', nome: null }] })
+  const r = await vigiar(t.deps, semFaxina)
+  assert(r.adiadasQueVoltaram === 2)
+  const a = t.abertos().filter((x) => x.p_tipo === 'conversa_adiada_voltou')
+  assert(a.length === 2 && a[0].p_chave === 'c1' && a[0].p_rota === '/conversas?lead=c1' && a[0].p_titulo === 'A conversa com Maria voltou para a fila')
+  assert(a[1].p_titulo === 'Uma conversa adiada voltou para a fila' && a[1].p_gravidade === 'info')
+})
+
+Deno.test('adiadas que falham não derrubam as outras verificações', async () => {
+  const t = falso({ quebrar: 'adiadas', leituras: ['desconectado', 'desconectado'] })
+  const r = await vigiar(t.deps, semFaxina)
+  assert(r.erros.join() === 'adiadas' && r.conexao === 'caida')
 })
