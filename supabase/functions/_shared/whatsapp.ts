@@ -46,6 +46,8 @@ export interface Ponte {
   digitando(numero: string, ms: number): Promise<void>
 
   enviarTexto(numero: string, texto: string): Promise<string | null>
+  /** Foto, vídeo, áudio ou documento por URL (assinada e curta). Lança se não saiu. */
+  enviarMidia(numero: string, tipo: 'image' | 'video' | 'audio' | 'document', url: string, legenda: string | null, nomeArquivo: string | null): Promise<string | null>
 
   baixarMidia(midia: Midia): Promise<{ base64: string; tipoMime: string } | null>
 

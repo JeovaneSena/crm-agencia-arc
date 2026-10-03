@@ -84,3 +84,14 @@ Deno.test('adiar: só está adiada com data no futuro', () => {
   eq(estaAdiada({ adiada_ate: null }, agora), false); eq(estaAdiada({}, agora), false)
 })
 
+// ---------- anexos ----------
+import { problemaDoAnexo, tamanhoLegivel } from '../../src/lib/anexos.ts'
+Deno.test('anexos: a tela recusa cedo o que a função recusaria (tipo, vazio, 5 MB de imagem, 16 MB)', () => {
+  eq(problemaDoAnexo('foto.JPG', 1000), null); eq(problemaDoAnexo('p.pdf', 15 * 1024 * 1024), null)
+  assert(problemaDoAnexo('a.exe', 10)?.includes('não é aceito')); assert(problemaDoAnexo('semextensao', 10)?.includes('não é aceito'))
+  assert(problemaDoAnexo('a.pdf', 0)?.includes('vazio'))
+  assert(problemaDoAnexo('a.png', 5 * 1024 * 1024 + 1)?.includes('5 MB')); eq(problemaDoAnexo('a.png', 5 * 1024 * 1024), null)
+  assert(problemaDoAnexo('a.mp4', 16 * 1024 * 1024 + 1)?.includes('16 MB'))
+})
+Deno.test('anexos: tamanho legível', () => { eq(tamanhoLegivel(500), '1 KB'); eq(tamanhoLegivel(2048), '2 KB'); eq(tamanhoLegivel(1.5 * 1024 * 1024), '1,5 MB') })
+

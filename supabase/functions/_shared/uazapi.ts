@@ -195,6 +195,24 @@ async function enviarTexto(numero: string, texto: string): Promise<string | null
 }
 
 /**
+ * Envia uma foto, vídeo, áudio ou documento a partir de uma URL (assinada e de curta duração, do nosso Storage).
+ * `legenda` vai como texto da mídia; `nomeArquivo` só vale para documento.
+ *
+ * ⚠️ NÃO TESTADA CONTRA O SERVIDOR REAL da uazapi: o formato (`POST /send/media` com `number`, `type`, `file`,
+ * `text`, `docName`) vem da documentação, e a conferência com um número de teste ainda está por fazer. Se a
+ * rota recusar, a mensagem fica `falhou` e o motivo aparece na conversa; nada é reenviado sozinho.
+ */
+async function enviarMidia(numero: string, tipo: 'image' | 'video' | 'audio' | 'document', url: string, legenda: string | null, nomeArquivo: string | null): Promise<string | null> {
+  const r = await chamar<{ messageid?: string; id?: string }>('/send/media', {
+    number: numero, type: tipo, file: url,
+    ...(legenda ? { text: legenda } : {}),
+    ...(tipo === 'document' && nomeArquivo ? { docName: nomeArquivo } : {}),
+  }, 'POST', 30_000)
+  if (!r) throw new Error('uazapi /send/media: sem resposta')
+  return r.messageid ?? r.id ?? null
+}
+
+/**
  * Pede à uazapi que descriptografe a mídia e a hospede.
  *
  * `POST /message/download` com o `messageid` devolve
@@ -362,6 +380,7 @@ export const UAZAPI: Ponte = {
   webhook,
   digitando,
   enviarTexto,
+  enviarMidia,
   baixarMidia,
   fotoDoPerfil,
   estadoDaConexao,

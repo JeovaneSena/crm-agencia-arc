@@ -6,6 +6,7 @@
  * Rotas (prefixo `/functions/v1/whatsapp`):
  *   POST /                       webhook da uazapi (segredo em x-webhook-segredo ou ?segredo=)
  *   POST /enviar                 equipe envia texto ao contato (idempotente por pedido_id)
+ *   POST /enviar-midia           equipe envia foto, vídeo, áudio ou documento (multipart; idempotente por pedido_id)
  *   GET  /conexao                estado da conexão, sem nunca devolver chave ou URL do webhook
  *   POST /conexao/conectar       inicia a conexão (QR / código)
  *   POST /conexao/desconectar
@@ -17,12 +18,13 @@
  *
  * Escreve em `mensagens_whatsapp` com a service_role; a equipe só lê.
  */
-import { apagar, apagarMidias, atualizar, inserir, listarMidias, rpc, selecionar, subirMidia } from '../_shared/db.ts'
+import { apagar, apagarMidias, assinarMidia, atualizar, inserir, listarMidias, rpc, selecionar, subirMidia } from '../_shared/db.ts'
 import { UAZAPI } from '../_shared/uazapi.ts'
 import { avaliarWebhook } from '../_shared/whatsapp.ts'
 import { usuarioDaSessao } from '../_shared/sessao.ts'
 import { aposReceber, camposDoContatoNovo, rascunhoDaIA } from '../_shared/gancho.ts'
 import { vigiar, type DepsVigia } from '../_shared/vigia.ts'
+import { classificarAnexo } from '../_shared/anexos.ts'
 
 const SEGREDO = Deno.env.get('WEBHOOK_SEGREDO') ?? ''
 const URL_SUPABASE = Deno.env.get('SUPABASE_URL')!
@@ -44,6 +46,7 @@ export async function handler(req: Request): Promise<Response> {
   try {
     if (req.method === 'POST' && rota === '') return await rotaWebhook(req)
     if (req.method === 'POST' && rota === '/enviar') return await rotaEnviar(req)
+    if (req.method === 'POST' && rota === '/enviar-midia') return await rotaEnviarMidia(req)
     if (req.method === 'GET' && rota === '/conexao') return await rotaConexao(req)
     if (req.method === 'POST' && rota === '/conexao/conectar') return await rotaConectar(req)
     if (req.method === 'POST' && rota === '/conexao/desconectar') return await rotaDesconectar(req)
@@ -161,6 +164,61 @@ async function rotaEnviar(req: Request): Promise<Response> {
     console.error('envio:', e instanceof Error ? e.message : 'erro')
     await atualizar('mensagens_whatsapp', `id=eq.${id}`, { estado_envio: 'falhou', erro_envio: 'Não foi possível enviar pela conexão do WhatsApp.' })
     return json({ ok: false, motivo: 'falha_no_envio' }, 502)
+  }
+}
+
+/**
+ * Envia um anexo. Mesma disciplina do texto: reserva a linha ANTES (o `pedido_id` impede o duplo clique de mandar
+ * duas vezes), guarda o arquivo no Storage, entrega à uazapi uma URL assinada de 10 minutos e registra o resultado.
+ * Qualquer falha deixa a mensagem `falhou` na conversa; nada é reenviado sozinho.
+ *
+ * ⚠️ A chamada à uazapi (`enviarMidia`) ainda não foi conferida contra o servidor real.
+ */
+async function rotaEnviarMidia(req: Request): Promise<Response> {
+  const usuario = await usuarioDaSessao(req)
+  if (!usuario) return json({ ok: false, motivo: 'sem_sessao' }, 401)
+  const tamanho = Number(req.headers.get('content-length') ?? 0)
+  if (tamanho > 20 * 1024 * 1024) return json({ ok: false, motivo: 'arquivo_grande' }, 413)
+
+  let form: FormData
+  try { form = await req.formData() } catch { return json({ ok: false, motivo: 'dados_invalidos' }, 400) }
+  const contatoId = String(form.get('contato_id') ?? '')
+  const pedido = String(form.get('pedido_id') ?? '')
+  const legenda = String(form.get('legenda') ?? '').trim()
+  const arquivo = form.get('arquivo')
+  if (!UUID.test(contatoId) || !UUID.test(pedido) || !(arquivo instanceof File) || legenda.length > 1024) return json({ ok: false, motivo: 'dados_invalidos' }, 400)
+
+  const bytes = new Uint8Array(await arquivo.arrayBuffer())
+  const aceito = classificarAnexo(arquivo.name, arquivo.type, bytes)
+  if (!aceito.ok) return json({ ok: false, motivo: 'anexo_recusado', erro: aceito.erro }, 400)
+
+  const contato = (await selecionar<{ whatsapp: string | null; assumido_por: string | null }>(`contatos_dados?select=whatsapp,assumido_por&id=eq.${contatoId}&limit=1`))[0]
+  if (!contato?.whatsapp) return json({ ok: false, motivo: 'contato_sem_whatsapp' }, 400)
+  if (contato.assumido_por && contato.assumido_por !== usuario.id) return json({ ok: false, motivo: 'conversa_com_outra_pessoa' }, 409)
+
+  const { anexo } = aceito
+  const reservadas = await inserir<{ id: string }>('mensagens_whatsapp', {
+    contato_id: contatoId, autor: 'atendente', tipo: anexo.tipo, conteudo: legenda || null, provedor: 'uazapi',
+    pedido_id: pedido, estado_envio: 'pendente', origem_envio: 'atendimento', enviada_por: usuario.id, lida: true,
+  }, true, 'pedido_id')
+  if (!reservadas.length) return json({ ok: true, repetido: true })
+
+  const id = reservadas[0].id
+  const falhou = async (erro: string, status: number, motivo: string) => {
+    await atualizar('mensagens_whatsapp', `id=eq.${id}`, { estado_envio: 'falhou', erro_envio: erro }).catch(() => {})
+    return json({ ok: false, motivo }, status)
+  }
+  try {
+    const caminho = `${contatoId}/saida-${id}.${anexo.extensao}`   // sob a pasta do contato: "apagar pessoa" leva junto
+    await subirMidia(caminho, bytes, anexo.mime)
+    await atualizar('mensagens_whatsapp', `id=eq.${id}`, { midia_url: caminho })
+    const url = await assinarMidia(caminho, 600)
+    const idExterno = await UAZAPI.enviarMidia(contato.whatsapp, anexo.uazapi, url, legenda || null, anexo.tipo === 'documento' ? anexo.nomeSeguro : null)
+    await atualizar('mensagens_whatsapp', `id=eq.${id}`, { id_externo: idExterno, estado_envio: 'enviado' })
+    return json({ ok: true })
+  } catch (e) {
+    console.error('envio de anexo:', e instanceof Error ? e.message.slice(0, 160) : 'erro')
+    return await falhou('Não foi possível enviar o anexo pela conexão do WhatsApp.', 502, 'falha_no_envio')
   }
 }
 

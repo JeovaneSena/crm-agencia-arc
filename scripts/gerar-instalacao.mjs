@@ -17,9 +17,9 @@ const MODULOS = {
   conversas: {
     migracoes: ['0007_modulo_conversas', '0012_retencao_de_midia', '0013_respostas_rapidas', '0014_notas_internas', '0015_assumir_e_transferir', '0016_adiar_conversa'],
     funcoes: ['whatsapp'],
-    compartilhados: ['uazapi.ts', 'whatsapp.ts', 'gancho.ts', 'sessao.ts', 'conversas_test.ts', 'optout.ts', 'optout_test.ts', 'vigia.ts', 'vigia_test.ts'],
+    compartilhados: ['uazapi.ts', 'whatsapp.ts', 'gancho.ts', 'sessao.ts', 'conversas_test.ts', 'optout.ts', 'optout_test.ts', 'vigia.ts', 'vigia_test.ts', 'anexos.ts', 'anexos_test.ts'],
     arquivos: ['scripts/vigia-worker.mjs'],
-    scripts: ['test:conversas', 'test:optout', 'test:vigia', 'test:conversas:db:rehearsal', 'test:conversas:db:apply', 'test:retencao:db:rehearsal', 'test:retencao:db:apply', 'test:respostas:db:rehearsal', 'test:respostas:db:apply', 'test:notas:db:rehearsal', 'test:notas:db:apply', 'test:conversa-dono:db:rehearsal', 'test:conversa-dono:db:apply', 'test:adiar:db:rehearsal', 'test:adiar:db:apply', 'test:ui:conversas'],
+    scripts: ['test:conversas', 'test:optout', 'test:vigia', 'test:anexos', 'test:conversas:db:rehearsal', 'test:conversas:db:apply', 'test:retencao:db:rehearsal', 'test:retencao:db:apply', 'test:respostas:db:rehearsal', 'test:respostas:db:apply', 'test:notas:db:rehearsal', 'test:notas:db:apply', 'test:conversa-dono:db:rehearsal', 'test:conversa-dono:db:apply', 'test:adiar:db:rehearsal', 'test:adiar:db:apply', 'test:ui:conversas'],
   },
   assistente: {
     requer: ['conversas'],

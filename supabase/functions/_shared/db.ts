@@ -161,3 +161,17 @@ export async function apagarMidias(caminhos: string[]): Promise<number> {
   if (!r.ok) throw new Error(`storage delete: ${r.status} ${await r.text()}`)
   return caminhos.length
 }
+
+/**
+ * URL assinada de um arquivo do bucket de mídias, válida por `segundos`. É o que se entrega à uazapi para ela buscar
+ * o anexo: o bucket é privado, então o endereço só funciona durante este prazo.
+ */
+export async function assinarMidia(caminho: string, segundos = 600): Promise<string> {
+  const r = await fetch(`${URL_BASE}/storage/v1/object/sign/midias-whatsapp/${caminho}`, {
+    method: 'POST', headers: CABECALHOS, body: JSON.stringify({ expiresIn: segundos }),
+  })
+  if (!r.ok) throw new Error(`storage sign: ${r.status} ${await r.text()}`)
+  const { signedURL } = await r.json() as { signedURL?: string }
+  if (!signedURL) throw new Error('storage sign: sem URL')
+  return `${URL_BASE}/storage/v1${signedURL.startsWith('/') ? '' : '/'}${signedURL}`
+}

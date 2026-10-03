@@ -755,3 +755,7 @@ svg { flex-shrink: 0; }
 
 .snooze-select { flex-shrink: 0; max-width: 120px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font: 12px var(--font-body); }
 
+.attach-chip { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 0 0 8px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface-subtle); font-size: 12.5px; }
+.attach-chip span { font-weight: 600; overflow-wrap: anywhere; }
+.attach-chip small { color: var(--muted); }
+.attach-chip button { border: 0; background: transparent; color: var(--muted); cursor: pointer; font-size: 16px; line-height: 1; }
