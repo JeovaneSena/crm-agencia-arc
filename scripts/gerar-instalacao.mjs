@@ -17,8 +17,9 @@ const MODULOS = {
   conversas: {
     migracoes: ['0007_modulo_conversas'],
     funcoes: ['whatsapp'],
-    compartilhados: ['uazapi.ts', 'whatsapp.ts', 'gancho.ts', 'sessao.ts', 'conversas_test.ts', 'optout.ts', 'optout_test.ts'],
-    scripts: ['test:conversas', 'test:optout', 'test:conversas:db:rehearsal', 'test:conversas:db:apply', 'test:ui:conversas'],
+    compartilhados: ['uazapi.ts', 'whatsapp.ts', 'gancho.ts', 'sessao.ts', 'conversas_test.ts', 'optout.ts', 'optout_test.ts', 'vigia.ts', 'vigia_test.ts'],
+    arquivos: ['scripts/vigia-worker.mjs'],
+    scripts: ['test:conversas', 'test:optout', 'test:vigia', 'test:conversas:db:rehearsal', 'test:conversas:db:apply', 'test:ui:conversas'],
   },
   assistente: {
     requer: ['conversas'],
@@ -162,7 +163,7 @@ try {
   }).join('\n')
   const linhasFuncoes = funcoes.map(f => `supabase functions deploy ${f} --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt`).join('\n')
   const extras = [
-    modulos.includes('conversas') && '- Conversas: configure `WEBHOOK_SEGREDO`, `UAZAPI_API_URL` e `UAZAPI_TOKEN` nos secrets das Edge Functions; configure o webhook da uazapi para `https://<ref>.supabase.co/functions/v1/whatsapp` e teste conexão, recebimento e envio.',
+    modulos.includes('conversas') && '- Conversas: configure `WEBHOOK_SEGREDO`, `UAZAPI_API_URL` e `UAZAPI_TOKEN` nos secrets das Edge Functions; configure o webhook da uazapi para `https://<ref>.supabase.co/functions/v1/whatsapp` e teste conexão, recebimento e envio. Configure também `VIGIA_SEGREDO` (24+ caracteres) e agende `node scripts/vigia-worker.mjs` a cada 5 minutos, com `SUPABASE_URL` e `VIGIA_SEGREDO` no ambiente do agendador: é ele que avisa na Central quando o WhatsApp cai ou uma mensagem não sai; sem o agendamento esses avisos não aparecem.',
     modulos.includes('assistente') && '- Assistente: configure `OPENAI_API_KEY` ou `ANTHROPIC_API_KEY` nos secrets. Comece no modo desligado, teste com um número permitido e só depois ative ao vivo.',
     modulos.includes('campanhas') && '- Campanhas: configure `META_ACCESS_TOKEN`, `META_APP_SECRET`, `META_VERIFY_TOKEN`, `META_PHONE_NUMBER_ID`, `META_WABA_ID`, `META_GRAPH_VERSION` e `CAMPANHAS_WORKER_SECRET`. Configure o webhook da Meta em `https://<ref>.supabase.co/functions/v1/campanhas/webhook`. Agende `node scripts/campanhas-worker.mjs` uma vez por minuto com `SUPABASE_URL` e `CAMPANHAS_WORKER_SECRET` no ambiente do agendador; sem esse agendamento a fila não envia.',
   ].filter(Boolean).join('\n')

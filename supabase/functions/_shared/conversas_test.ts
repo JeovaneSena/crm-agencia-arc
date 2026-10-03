@@ -5,6 +5,7 @@ Deno.env.set('SUPABASE_ANON_KEY', 'anon')
 Deno.env.set('WEBHOOK_SEGREDO', 'segredo-de-teste')
 Deno.env.set('UAZAPI_API_URL', 'https://uaz.invalid')
 Deno.env.set('UAZAPI_TOKEN', 'tok')
+Deno.env.set('VIGIA_SEGREDO', 'segredo-do-vigia-com-mais-de-24-letras')
 
 const { handler } = await import('../whatsapp/index.ts')
 
@@ -132,5 +133,39 @@ Deno.test('apagar pessoa é só do gestor', async () => {
   try {
     const r = await post('/apagar-pessoa', { contato_id: ID }, auth)
     assert(r.status === 403); assert(!chamadas.some((c) => c.metodo === 'DELETE'))
+  } finally { restaurar() }
+})
+
+Deno.test('vigia: sem o segredo certo é recusado e não toca no banco', async () => {
+  falso()
+  try {
+    for (const cab of [{} as Record<string, string>, { authorization: 'Bearer errado' }, { authorization: 'Bearer curto' }]) {
+      const r = await post('/vigiar', {}, cab)
+      assert(r.status === 401)
+    }
+    assert(chamadas.length === 0)
+  } finally { restaurar() }
+})
+
+Deno.test('vigia: mensagem pendente antiga vira incerta e abre o aviso; o corte é de 5 min', async () => {
+  falso()
+  respostas = (u, m) => {
+    if (u.pathname.endsWith('/mensagens_whatsapp') && m === 'GET') return [{ id: 'm1', contato_id: ID }]
+    if (u.pathname.endsWith('/conversas_config')) return [{ provedor: 'meta' }] // sem uazapi: a conexão não é vigiada
+    if (u.pathname.endsWith('/assistente_config')) return []
+    if (u.pathname.endsWith('/rpc/aviso_abrir')) return 'aviso-1'
+    return []
+  }
+  try {
+    const r = await post('/vigiar', {}, { authorization: 'Bearer segredo-do-vigia-com-mais-de-24-letras' })
+    const corpo = await r.json()
+    assert(r.status === 200 && corpo.ok === true && corpo.mensagensPresas === 1 && corpo.conexao === 'nao_vigiada', JSON.stringify(corpo))
+    const busca = chamadas.find((c) => c.url.startsWith('/rest/v1/mensagens_whatsapp') && c.metodo === 'GET')!
+    assert(busca.url.includes('estado_envio=eq.pendente') && busca.url.includes('autor=in.(agente,atendente)') && busca.url.includes('criada_em=lt.'))
+    const marca = chamadas.find((c) => c.metodo === 'PATCH')!
+    assert(marca.url.includes('id=in.(m1)') && marca.url.includes('estado_envio=eq.pendente'), 'só marca as que ainda estão pendentes')
+    assert((marca.corpo as Record<string, unknown>).estado_envio === 'incerto')
+    const aviso = chamadas.find((c) => c.url.endsWith('/rpc/aviso_abrir'))!
+    assert((aviso.corpo as Record<string, unknown>).p_tipo === 'mensagem_presa' && (aviso.corpo as Record<string, unknown>).p_contato_id === ID)
   } finally { restaurar() }
 })

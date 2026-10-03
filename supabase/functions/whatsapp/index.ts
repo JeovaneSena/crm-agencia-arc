@@ -11,14 +11,17 @@
  *   POST /conexao/desconectar
  *   GET  /foto?whatsapp=         foto de perfil
  *   POST /apagar-pessoa          só gestor: mídias do Storage + contato (o resto cai em cascata)
+ *   POST /vigiar                 o vigia (Authorization: Bearer VIGIA_SEGREDO), a cada 5 min: mensagem presa,
+ *                                conexão caída, assistente esquecido em teste; abre e fecha avisos na Central
  *
  * Escreve em `mensagens_whatsapp` com a service_role; a equipe só lê.
  */
-import { apagar, apagarMidias, atualizar, inserir, listarMidias, selecionar, subirMidia } from '../_shared/db.ts'
+import { apagar, apagarMidias, atualizar, inserir, listarMidias, rpc, selecionar, subirMidia } from '../_shared/db.ts'
 import { UAZAPI } from '../_shared/uazapi.ts'
 import { avaliarWebhook } from '../_shared/whatsapp.ts'
 import { usuarioDaSessao } from '../_shared/sessao.ts'
 import { aposReceber, camposDoContatoNovo } from '../_shared/gancho.ts'
+import { vigiar, type DepsVigia } from '../_shared/vigia.ts'
 
 const SEGREDO = Deno.env.get('WEBHOOK_SEGREDO') ?? ''
 const URL_SUPABASE = Deno.env.get('SUPABASE_URL')!
@@ -45,6 +48,7 @@ export async function handler(req: Request): Promise<Response> {
     if (req.method === 'POST' && rota === '/conexao/desconectar') return await rotaDesconectar(req)
     if (req.method === 'GET' && rota === '/foto') return await rotaFoto(req)
     if (req.method === 'POST' && rota === '/apagar-pessoa') return await rotaApagarPessoa(req)
+    if (req.method === 'POST' && rota === '/vigiar') return await rotaVigiar(req)
     return json({ ok: false, motivo: 'rota_desconhecida' }, 404)
   } catch (e) {
     console.error('erro na entrada:', e instanceof Error ? e.message : 'erro')
@@ -218,4 +222,51 @@ async function rotaApagarPessoa(req: Request): Promise<Response> {
   await apagar('contatos_dados', `id=eq.${contatoId}`)
   console.log(`pessoa apagada: ${contatoId} por ${usuario.id} (${midias} arquivo(s))`)
   return json({ ok: true, midias })
+}
+
+// ---------------------------------------------------------------------------
+// Vigia
+// ---------------------------------------------------------------------------
+
+/** Tabela que não existe (módulo não instalado) não é erro: é "nada a vigiar". */
+const semTabela = (e: unknown) => e instanceof Error && /PGRST205|42P01|does not exist/i.test(e.message)
+
+function depsDoVigia(): DepsVigia {
+  return {
+    agora: () => new Date(),
+    esperar: (ms) => new Promise((r) => setTimeout(r, ms)),
+    rpc,
+    async mensagensPendentes(antesDe) {
+      const m = await selecionar<{ id: string; contato_id: string }>(
+        `mensagens_whatsapp?select=id,contato_id&estado_envio=eq.pendente&autor=in.(agente,atendente)&criada_em=lt.${encodeURIComponent(antesDe.toISOString())}&order=criada_em&limit=200`)
+      return m.map((x) => ({ id: x.id, contatoId: x.contato_id }))
+    },
+    async marcarIncertas(ids) {
+      // Só as que continuam pendentes: se o envio terminou no meio, o estado dele vale mais.
+      for (let i = 0; i < ids.length; i += 50) {
+        await atualizar('mensagens_whatsapp', `id=in.(${ids.slice(i, i + 50).join(',')})&estado_envio=eq.pendente`,
+          { estado_envio: 'incerto', erro_envio: 'O envio não foi confirmado. Confira antes de reenviar.' })
+      }
+    },
+    async estadoDaConexao() {
+      // Só a uazapi tem conexão para vigiar; com a Meta oficial não há QR a cair.
+      const provedor = (await selecionar<{ provedor: string }>('conversas_config?select=provedor&limit=1'))[0]?.provedor
+      if (provedor !== 'uazapi' || !UAZAPI.configurada()) return null
+      return (await UAZAPI.estadoDaConexao()).estado
+    },
+    async assistente() {
+      try {
+        const c = (await selecionar<{ modo: string; updated_at: string }>('assistente_config?select=modo,updated_at&limit=1'))[0]
+        return c ? { modo: c.modo, desde: new Date(c.updated_at) } : null
+      } catch (e) { if (semTabela(e)) return null; throw e }
+    },
+  }
+}
+
+async function rotaVigiar(req: Request): Promise<Response> {
+  const segredo = Deno.env.get('VIGIA_SEGREDO') ?? ''
+  const enviado = (req.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '')
+  if (segredo.length < 24 || enviado !== segredo) return json({ ok: false, motivo: 'nao_autorizado' }, 401)
+  const r = await vigiar(depsDoVigia(), async () => Number(await rpc<number>('avisos_expurgar', { p_dias: 90 })) || 0)
+  return json({ ok: r.erros.length === 0, ...r }, r.erros.length ? 500 : 200)
 }
