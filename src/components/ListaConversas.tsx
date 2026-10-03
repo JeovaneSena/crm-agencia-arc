@@ -1,11 +1,13 @@
 import { useState } from 'react'
-import { Search, UserCheck, MessageSquareDashed, CalendarCheck, CalendarX, LifeBuoy } from 'lucide-react'
+import { Search, UserCheck, MessageSquareDashed, CalendarCheck, CalendarX, LifeBuoy, AlarmClock } from 'lucide-react'
 import { formatarParaExibicao } from '../lib/telefones'
 import { previaDaMensagem, quandoCurto, temConsultaMarcada, quandoAgendada } from '../lib/conversas'
 import { AGENTE_TITULO, useAgente } from '../lib/agente'
 import { espera, type Encaminhamento } from '../lib/encaminhamento'
 import type { ConversaResumo } from '../types'
 import { moduloAtivo } from '../lib/modulos'
+import { estaAdiada } from '../lib/adiar'
+import type { Etiqueta } from '../lib/etiquetasRegras'
 
 /**
  * A coluna da esquerda: quem falou com a empresa, em ordem de quem falou por
@@ -24,31 +26,40 @@ const FONTE = "var(--font-body)"
  * — isso é o CRM. Aqui a pergunta é **"de quem eu preciso cuidar agora?"**:
  * quem esperou resposta (não lidas) e quem já converteu (agendadas).
  */
-type Filtro = 'todas' | 'equipe' | 'agendadas' | 'nao_lidas'
+type Filtro = 'todas' | 'equipe' | 'agendadas' | 'nao_lidas' | 'adiadas'
 
 const ROTULO_FILTRO: Record<Filtro, string> = {
   todas: 'Todas',
   equipe: 'Equipe',
   agendadas: 'Agendadas',
   nao_lidas: 'Não lidas',
+  adiadas: 'Adiadas',
 }
 
 interface Props {
   conversas: ConversaResumo[]
   /** Quem o assistente passou para a equipe, por contato (migração 0009). */
   encaminhadas: Map<string, Encaminhamento>
+  /** Vocabulário de etiquetas e quem tem quais (migração 0017), para filtrar a lista. */
+  etiquetas?: Etiqueta[]
+  porContato?: Map<string, Set<string>>
   selecionada: string | null
   onSelecionar: (leadId: string) => void
   carregando: boolean
 }
 
-export default function ListaConversas({ conversas, encaminhadas, selecionada, onSelecionar, carregando }: Props) {
+export default function ListaConversas({ conversas, encaminhadas, etiquetas = [], porContato, selecionada, onSelecionar, carregando }: Props) {
   const { nome: nomeAgente, porExtenso: agentePorExtenso } = useAgente()
   const [busca, setBusca] = useState('')
   const [filtro, setFiltro] = useState<Filtro>('todas')
+  const [etiquetaFiltro, setEtiquetaFiltro] = useState('')
 
+  // Conversa adiada sai da fila (e dos contadores) até a hora de voltar; só aparece em "Adiadas" ou se estiver aberta.
+  const fora = (c: ConversaResumo) => estaAdiada(c) && c.contato_id !== selecionada
   const passaNoFiltro = (c: ConversaResumo) =>
-    filtro === 'todas' ? true
+    filtro === 'adiadas' ? estaAdiada(c)
+      : fora(c) ? false
+      : filtro === 'todas' ? true
       : filtro === 'equipe' ? encaminhadas.has(c.contato_id)
       : filtro === 'agendadas' ? temConsultaMarcada(c)
       : c.nao_lidas > 0
@@ -60,15 +71,17 @@ export default function ListaConversas({ conversas, encaminhadas, selecionada, o
     (!!termo.replace(/\D/g, '') && (c.whatsapp ?? '').includes(termo.replace(/\D/g, ''))) ||
     (c.ultimo_conteudo ?? '').toLowerCase().includes(termo)
 
-  const filtradas = conversas.filter((c) => passaNoFiltro(c) && passaNaBusca(c))
+  const passaNaEtiqueta = (c: ConversaResumo) => !etiquetaFiltro || !!porContato?.get(c.contato_id)?.has(etiquetaFiltro)
+  const filtradas = conversas.filter((c) => passaNoFiltro(c) && passaNaBusca(c) && passaNaEtiqueta(c))
 
   // Os números das abas contam a lista INTEIRA, não o resultado da busca: eles
   // dizem quanto existe, e um contador que muda ao digitar não serve para isso.
   const totais: Record<Filtro, number> = {
-    todas: conversas.length,
-    equipe: conversas.filter((c) => encaminhadas.has(c.contato_id)).length,
-    agendadas: conversas.filter(temConsultaMarcada).length,
-    nao_lidas: conversas.filter((c) => c.nao_lidas > 0).length,
+    todas: conversas.filter((c) => !fora(c)).length,
+    equipe: conversas.filter((c) => !fora(c) && encaminhadas.has(c.contato_id)).length,
+    agendadas: conversas.filter((c) => !fora(c) && temConsultaMarcada(c)).length,
+    nao_lidas: conversas.filter((c) => !fora(c) && c.nao_lidas > 0).length,
+    adiadas: conversas.filter((c) => estaAdiada(c)).length,
   }
 
   const vazioTexto = termo
@@ -79,6 +92,8 @@ export default function ListaConversas({ conversas, encaminhadas, selecionada, o
       ? `Ninguém com reunião marcada por aqui ainda. Quando a ${nomeAgente} marcar, a etiqueta verde aparece na conversa.`
       : filtro === 'nao_lidas'
         ? 'Nada esperando resposta. Tudo lido.'
+      : filtro === 'adiadas'
+        ? 'Nenhuma conversa adiada. Use "Adiar" dentro de uma conversa para ela voltar na hora certa.'
         : 'Assim que alguém mandar mensagem no WhatsApp da empresa, a conversa aparece aqui.'
 
   return (
@@ -111,8 +126,14 @@ export default function ListaConversas({ conversas, encaminhadas, selecionada, o
           />
         </div>
 
+        {etiquetas.length > 0 && <select aria-label="Filtrar conversas por etiqueta" value={etiquetaFiltro} onChange={(e) => setEtiquetaFiltro(e.target.value)}
+          style={{ width: '100%', marginTop: 8, padding: '7px 10px', borderRadius: 9, border: '1px solid var(--border)', fontSize: 12.5, fontFamily: FONTE, color: 'var(--text)', background: 'var(--surface-subtle)' }}>
+          <option value="">Todas as etiquetas</option>
+          {etiquetas.map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}
+        </select>}
+
         <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
-          {(Object.keys(ROTULO_FILTRO) as Filtro[]).filter((f) => f !== 'equipe' || moduloAtivo('assistente')).map((f) => {
+          {(Object.keys(ROTULO_FILTRO) as Filtro[]).filter((f) => f !== 'equipe' || moduloAtivo('assistente')).filter((f) => f !== 'adiadas' || totais.adiadas > 0 || filtro === 'adiadas').map((f) => {
             const ativo = filtro === f
             return (
               <button
@@ -241,7 +262,7 @@ export default function ListaConversas({ conversas, encaminhadas, selecionada, o
                 </div>
 
                 {/* As etiquetas. Numa linha só, que quebra se precisar. */}
-                {(agendada || cancelada || c.assumida || chamado) && (
+                {(agendada || cancelada || c.assumida || chamado || estaAdiada(c)) && (
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 6 }}>
 
                     {/* O chamado vem primeiro: é o que muda o que fazer agora.
@@ -278,6 +299,17 @@ export default function ListaConversas({ conversas, encaminhadas, selecionada, o
                       }}>
                         <CalendarX size={10} />
                         Oportunidade perdida
+                      </span>
+                    )}
+
+                    {estaAdiada(c) && c.adiada_ate && (
+                      <span style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 4,
+                        background: 'var(--surface-subtle)', border: '1px solid var(--border)', borderRadius: 6,
+                        padding: '2px 6px', fontSize: 10, fontWeight: 600, color: 'var(--muted)',
+                      }}>
+                        <AlarmClock size={10} />
+                        Volta {quandoAgendada(c.adiada_ate)}
                       </span>
                     )}
 

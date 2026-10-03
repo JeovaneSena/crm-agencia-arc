@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { LoaderCircle, Send } from 'lucide-react'
 
 interface Props {
@@ -10,6 +10,10 @@ interface Props {
   placeholder?: string
   ariaLabel?: string
   maxLength?: number
+  /** Botões à esquerda da caixa (ex.: respostas rápidas). */
+  antes?: ReactNode
+  /** Deixa enviar com a caixa vazia (ex.: há um anexo escolhido). */
+  permitirVazio?: boolean
 }
 
 export default function CompositorMensagem({
@@ -21,9 +25,11 @@ export default function CompositorMensagem({
   placeholder = 'Digite uma mensagem',
   ariaLabel = 'Mensagem para o contato',
   maxLength,
+  antes,
+  permitirVazio = false,
 }: Props) {
   const campo = useRef<HTMLTextAreaElement | null>(null)
-  const podeEnviar = !desabilitado && !enviando && !!texto.trim()
+  const podeEnviar = !desabilitado && !enviando && (permitirVazio || !!texto.trim())
 
   useEffect(() => {
     const elemento = campo.current
@@ -38,6 +44,7 @@ export default function CompositorMensagem({
 
   return (
     <div className="message-composer">
+      {antes}
       <textarea
         ref={campo}
         className="message-composer-input"

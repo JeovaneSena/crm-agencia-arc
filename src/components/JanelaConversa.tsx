@@ -1,10 +1,22 @@
 import { supabase } from '../lib/supabase'
 import CompositorMensagem from './CompositorMensagem'
+import RespostasRapidas from './RespostasRapidas'
+import GerenciarRespostas from './GerenciarRespostas'
+import { useRespostasRapidas } from '../lib/useRespostasRapidas'
+import { LIMITE_DA_NOTA, type NotaConversa } from '../lib/notas'
+import { pedirRascunho } from '../lib/conversas'
+import { ACEITOS, problemaDoAnexo, tamanhoLegivel } from '../lib/anexos'
+import { mesclarConversa } from '../lib/conversaMesclada'
+import { useSessao } from '../lib/sessao'
+import { useEquipeAtiva } from '../lib/useEquipeAtiva'
+import { estaAdiada, opcoesDeAdiamento } from '../lib/adiar'
+import { atalhoDigitado, expandirAtalho, filtrar, preencher, variaveisPendentes, type RespostaRapida } from '../lib/respostasRapidas'
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   UserCheck, Undo2, Bot, ExternalLink, MessagesSquare, FileText,
   PanelRightOpen, PanelRightClose, ArrowLeft, LifeBuoy, CheckCheck, Power,
+  StickyNote, Trash2, Sparkles, Paperclip,
 } from 'lucide-react'
 import { formatarParaExibicao } from '../lib/telefones'
 import { espera, type Encaminhamento } from '../lib/encaminhamento'
@@ -125,6 +137,19 @@ function Balao({ mensagem, mostrarAutor }: { mensagem: MensagemWhatsapp; mostrar
 }
 
 /* ──────────────────────────────────────────────
+   Uma nota interna: só a equipe vê, nunca sai para o WhatsApp
+────────────────────────────────────────────── */
+function NotaInterna({ nota, podeApagar, onApagar }: { nota: NotaConversa; podeApagar: boolean; onApagar: () => void }) {
+  return <div className="internal-note" role="note" aria-label="Nota interna">
+    <div className="internal-note-head">
+      <span><StickyNote size={12} /> Nota interna{nota.autor?.nome ? ` · ${nota.autor.nome}` : ''} · {hora(nota.created_at)}</span>
+      {podeApagar && <button type="button" aria-label="Apagar nota" title="Apagar nota" onClick={onApagar}><Trash2 size={12} /></button>}
+    </div>
+    <div style={{ whiteSpace: 'pre-wrap' }}>{nota.texto}</div>
+  </div>
+}
+
+/* ──────────────────────────────────────────────
    A janela
 ────────────────────────────────────────────── */
 interface Props {
@@ -132,12 +157,24 @@ interface Props {
   /** O encaminhamento do assistente para a equipe, quando existe (migração 0009). */
   atendimento: Encaminhamento | null
   mensagens: MensagemWhatsapp[]
+  /** Anotações da equipe (migração 0014). Nunca vão ao WhatsApp. */
+  notas: NotaConversa[]
+  onNota: (texto: string) => void
+  onApagarNota: (id: string) => void
   carregando: boolean
   enviando: boolean
   erro: string
   onEnviar: (texto: string) => void
+  /** Envia uma foto, vídeo, áudio ou documento, com a legenda que estiver na caixa. */
+  onEnviarAnexo: (arquivo: File, legenda: string) => void
   onAtualizar: () => void
   onAssumir: () => void
+  /** Só o gestor: tomar a conversa de quem já está com ela. */
+  onForcarAssumir: () => void
+  /** Passa a conversa para outra pessoa da equipe. */
+  onTransferir: (usuarioId: string) => void
+  /** Tira a conversa da fila até a data; nulo = volta agora. */
+  onAdiar: (ate: Date | null) => void
   onDevolver: () => void
   onAlternarIA: (ligada: boolean) => void
   painelAberto: boolean
@@ -146,13 +183,25 @@ interface Props {
 }
 
 export default function JanelaConversa({
-  conversa, atendimento, mensagens, carregando, enviando, erro, onEnviar, onAssumir, onDevolver, onAlternarIA,
+  conversa, atendimento, mensagens, notas, onNota, onApagarNota, carregando, enviando, erro, onEnviar, onEnviarAnexo, onAssumir, onForcarAssumir, onTransferir, onAdiar, onDevolver, onAlternarIA,
   painelAberto, onAlternarPainel, onVoltar,
 }: Props) {
   const { nome: nomeAgente, porExtenso: agentePorExtenso } = useAgente()
   // Assumir/devolver só faz sentido com o assistente respondendo; sem ele, a equipe escreve direto.
   const comAssistente = moduloAtivo('assistente')
   const [texto, setTexto] = useState('')
+  const [aviso, setAviso] = useState('')
+  const [modo, setModo] = useState<'responder' | 'nota'>('responder')
+  const [textoNota, setTextoNota] = useState('')
+  const { usuario, gestor } = useSessao()
+  const equipe = useEquipeAtiva()
+  const [destino, setDestino] = useState('')
+  const [gerenciando, setGerenciando] = useState(false)
+  const [rascunhando, setRascunhando] = useState(false)
+  const [anexo, setAnexo] = useState<File | null>(null)
+  const seletor = useRef<HTMLInputElement | null>(null)
+  const [rascunhoGerado, setRascunhoGerado] = useState(false)
+  const { respostas, recarregar: recarregarRespostas } = useRespostasRapidas()
   const [provedor,setProvedor] = useState<string | null>(null)
   useEffect(()=>{
     let vivo=true
@@ -189,14 +238,63 @@ export default function JanelaConversa({
 
   const nome = conversa.nome?.trim() || formatarParaExibicao(conversa.whatsapp) || 'Sem nome'
   const assumida = conversa.assumida
-  const livre = assumida || !comAssistente
+  // Conversa com dono: só o dono escreve. O gestor pode tomá-la ou transferi-la; os outros só leem.
+  const euCuido = assumida && conversa.assumido_por === usuario?.id
+  const deOutro = assumida && !euCuido
+  const donoNome = conversa.assumido_por_nome || 'Outra pessoa'
+  const livre = euCuido || (!assumida && !comAssistente)
+  const podeTransferir = euCuido || (deOutro && gestor)
+  const candidatos = equipe.filter((m) => m.id !== conversa.assumido_por)
+
+  function escolherAnexo(f: File | undefined) {
+    if (!f) return
+    const problema = problemaDoAnexo(f.name, f.size)
+    if (problema) { setAviso(problema); return }
+    setAviso(''); setAnexo(f)
+  }
 
   function enviar() {
     const limpo = texto.trim()
-    if (!limpo || enviando) return
-    onEnviar(limpo)
+    if ((!limpo && !anexo) || enviando) return
+    // "/atalho" + Enter expande o texto na caixa, sem enviar: a pessoa lê antes.
+    if (limpo && !anexo) {
+      const expandido = expandirAtalho(limpo, respostas, { nome: conversa?.nome })
+      if (expandido !== null) { setTexto(expandido); setAviso(''); return }
+    }
+    // Variável sem valor sairia para o cliente com as chaves à mostra.
+    const pendentes = variaveisPendentes(limpo)
+    if (pendentes.length) { setAviso(`Complete ou apague ${pendentes.join(', ')} antes de enviar: o cliente receberia o texto com as chaves.`); return }
+    setAviso('')
+    if (anexo) { onEnviarAnexo(anexo, limpo); setAnexo(null) } else onEnviar(limpo)
     setTexto('')
+    setRascunhoGerado(false)
   }
+
+  function salvarNota() {
+    const limpo = textoNota.trim()
+    if (!limpo) return
+    onNota(limpo)
+    setTextoNota('')
+  }
+
+  async function sugerir() {
+    if (!conversa) return
+    if (texto.trim()) { setAviso('Limpe a caixa de texto antes de pedir um rascunho: ele a substituiria.'); return }
+    setRascunhando(true); setAviso('')
+    try { setTexto(await pedirRascunho(conversa.contato_id)); setRascunhoGerado(true) }
+    catch { setAviso('Não consegui gerar o rascunho agora. Escreva a resposta à mão.') }
+    setRascunhando(false)
+  }
+
+  function inserir(r: RespostaRapida) {
+    const pronto = preencher(r.texto, { nome: conversa?.nome })
+    setAviso('')
+    setTexto(texto.trim() === '' || atalhoDigitado(texto) !== null ? pronto : `${texto}${/\s$/.test(texto) ? '' : '\n'}${pronto}`)
+  }
+
+  const itens = mesclarConversa(mensagens, notas)
+  const termoDoAtalho = atalhoDigitado(texto)
+  const sugestoes = termoDoAtalho !== null ? filtrar(respostas, termoDoAtalho).slice(0, 5) : []
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, height: '100%' }}>
@@ -233,7 +331,25 @@ export default function JanelaConversa({
           </div>
         </div>
 
-        {comAssistente && (assumida ? (
+        <select className="snooze-select" aria-label="Adiar conversa" value="" onChange={(e) => {
+          const v = e.target.value
+          if (v === 'agora') onAdiar(null)
+          else { const o = opcoesDeAdiamento(new Date()).find((x) => x.id === v); if (o) onAdiar(o.ate) }
+        }}>
+          <option value="">{estaAdiada(conversa) ? 'Adiada…' : 'Adiar…'}</option>
+          {estaAdiada(conversa) && <option value="agora">Voltar para a fila agora</option>}
+          {opcoesDeAdiamento(new Date()).map((o) => <option key={o.id} value={o.id}>{o.rotulo}</option>)}
+        </select>
+
+        {podeTransferir && candidatos.length > 0 && <span className="transfer-box">
+          <select aria-label="Transferir conversa para" value={destino} onChange={(e) => setDestino(e.target.value)}>
+            <option value="">Transferir para…</option>
+            {candidatos.map((m) => <option key={m.id} value={m.id}>{m.nome}</option>)}
+          </select>
+          <button type="button" disabled={!destino} onClick={() => { onTransferir(destino); setDestino('') }}>Transferir</button>
+        </span>}
+
+        {euCuido ? (
           <button className="conversation-takeover" onClick={onDevolver}
             style={{
               display: 'flex', alignItems: 'center', gap: 6, padding: '7px 13px',
@@ -243,8 +359,15 @@ export default function JanelaConversa({
             }}>
             {atendimento
               ? <><CheckCheck size={13} /> Concluir atendimento</>
-              : <><Undo2 size={13} /> Devolver para a {nomeAgente}</>}
+              : <><Undo2 size={13} /> {comAssistente ? `Devolver para a ${nomeAgente}` : 'Liberar conversa'}</>}
           </button>
+        ) : deOutro ? (
+          gestor
+            ? <button className="conversation-takeover" onClick={onForcarAssumir}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 13px', borderRadius: 9, border: 'none', background: 'var(--action)', color: 'var(--on-action)', cursor: 'pointer', fontSize: 12.5, fontWeight: 600, fontFamily: FONTE, flexShrink: 0 }}>
+                <UserCheck size={13} /> Assumir de {donoNome}
+              </button>
+            : <span style={{ fontSize: 12, color: 'var(--muted)', flexShrink: 0 }}>Com {donoNome}</span>
         ) : (
           <button className="conversation-takeover" onClick={onAssumir}
             style={{
@@ -255,7 +378,7 @@ export default function JanelaConversa({
             }}>
             <UserCheck size={13} /> Assumir conversa
           </button>
-        ))}
+        )}
 
         <button onClick={onAlternarPainel} aria-label="Dados do contato" aria-expanded={painelAberto}
           title={painelAberto ? 'Esconder os dados da pessoa' : 'Ver os dados da pessoa'}
@@ -278,8 +401,8 @@ export default function JanelaConversa({
         {assumida ? <UserCheck size={12} /> : <Bot size={12} />}
         {assumida
           ? <span>
-              <strong>Você está atendendo.</strong> A {nomeAgente} não responde nesta
-              conversa{conversa.assumido_por_nome ? ` — assumida por ${conversa.assumido_por_nome}` : ''}.
+              <strong>{euCuido ? 'Você está atendendo.' : `${donoNome} está atendendo.`}</strong> A {nomeAgente} não responde nesta
+              conversa{euCuido && conversa.assumido_por_nome ? ` — assumida por ${conversa.assumido_por_nome}` : ''}.
             </span>
           : conversa.ia_ligada
             ? <span><strong>A {agentePorExtenso} está atendendo.</strong> Assuma a conversa para responder você mesmo.</span>
@@ -314,24 +437,24 @@ export default function JanelaConversa({
           </div>
         )}
 
-        {mensagens.map((m, i) => {
-          const anterior = mensagens[i - 1]
-          const dia = diaPorExtenso(m.criada_em)
-          const novoDia = !anterior || diaPorExtenso(anterior.criada_em) !== dia
-
+        {itens.map((item, i) => {
+          const anterior = itens[i - 1]
+          const dia = diaPorExtenso(item.quando)
+          const novoDia = !anterior || diaPorExtenso(anterior.quando) !== dia
+          const separador = novoDia && (
+            <div style={{ textAlign: 'center', margin: '14px 0 12px' }}>
+              <span style={{ background: 'var(--border)', color: 'var(--text)', fontSize: 10.5, fontWeight: 600, padding: '3px 11px', borderRadius: 20 }}>{dia}</span>
+            </div>
+          )
+          if (item.tipo === 'nota') {
+            const n = item.nota
+            return <div key={`nota-${n.id}`}>{separador}<NotaInterna nota={n} podeApagar={gestor || n.autor_id === usuario?.id} onApagar={() => onApagarNota(n.id)} /></div>
+          }
+          const m = item.mensagem
           return (
             <div key={m.id}>
-              {novoDia && (
-                <div style={{ textAlign: 'center', margin: '14px 0 12px' }}>
-                  <span style={{
-                    background: 'var(--border)', color: 'var(--text)', fontSize: 10.5, fontWeight: 600,
-                    padding: '3px 11px', borderRadius: 20,
-                  }}>
-                    {dia}
-                  </span>
-                </div>
-              )}
-              <Balao mensagem={m} mostrarAutor={!anterior || anterior.autor !== m.autor} />
+              {separador}
+              <Balao mensagem={m} mostrarAutor={!anterior || anterior.tipo !== 'mensagem' || anterior.mensagem.autor !== m.autor} />
             </div>
           )
         })}
@@ -349,13 +472,35 @@ export default function JanelaConversa({
           </div>
         )}
 
+        <div role="tablist" aria-label="O que você quer fazer" className="composer-tabs">
+          <button type="button" role="tab" aria-selected={modo === 'responder'} onClick={() => setModo('responder')}>Responder</button>
+          <button type="button" role="tab" aria-selected={modo === 'nota'} onClick={() => setModo('nota')}><StickyNote size={13} /> Nota interna</button>
+        </div>
+        {modo === 'nota' && <>
+          <p className="composer-hint">Só a equipe vê. Não é enviada ao cliente.</p>
+          <CompositorMensagem texto={textoNota} onTexto={setTextoNota} onEnviar={salvarNota} ariaLabel="Nota interna" placeholder="Escreva uma nota para a equipe" maxLength={LIMITE_DA_NOTA} />
+        </>}
+        {modo === 'responder' && <>
+        {aviso && <div role="alert" style={{ marginBottom: 9, padding: '8px 12px', background: 'var(--warning-soft)', border: '1px solid var(--warning-border)', borderRadius: 8, fontSize: 12, color: 'var(--warning)' }}>{aviso}</div>}
+        {livre && provedor === 'uazapi' && sugestoes.length > 0 && <ul className="rr-lista rr-sugestoes" aria-label="Respostas rápidas sugeridas">
+          {sugestoes.map((r) => <li key={r.id}><button type="button" onClick={() => inserir(r)}><strong>{r.titulo}</strong>{r.atalho && <code>/{r.atalho}</code>}<span>{r.texto}</span></button></li>)}
+        </ul>}
+        {anexo && <div className="attach-chip" role="status"><Paperclip size={13} /> <span>{anexo.name}</span> <small>{tamanhoLegivel(anexo.size)}</small> <button type="button" aria-label="Tirar o anexo" onClick={() => setAnexo(null)}>×</button><small>A legenda é o texto da caixa.</small></div>}
+        {rascunhoGerado && <p className="composer-hint" role="status">Rascunho da IA. Leia e ajuste antes de enviar.</p>}
         {livre && provedor === 'meta' ? null : livre && provedor === 'uazapi' ? (
           <CompositorMensagem
             texto={texto}
-            onTexto={setTexto}
+            onTexto={(t) => { setTexto(t); if (aviso) setAviso(''); if (!t) setRascunhoGerado(false) }}
             onEnviar={enviar}
             enviando={enviando}
             ariaLabel="Resposta ao contato"
+            permitirVazio={!!anexo}
+            antes={<>
+              <input ref={seletor} type="file" accept={ACEITOS} hidden aria-label="Anexar arquivo" onChange={(e) => { escolherAnexo(e.target.files?.[0]); e.target.value = '' }} />
+              <button type="button" className="rr-botao" aria-label="Anexar arquivo" title="Anexar foto, vídeo, áudio ou documento" disabled={enviando} onClick={() => seletor.current?.click()}><Paperclip size={17} /></button>
+              <RespostasRapidas respostas={respostas} onEscolher={inserir} onGerenciar={() => setGerenciando(true)} desabilitado={enviando} />
+              {comAssistente && <button type="button" className="rr-botao" aria-label="Sugerir resposta com IA" title="Sugerir resposta com IA" disabled={enviando || rascunhando} onClick={() => void sugerir()}><Sparkles size={17} /></button>}
+            </>}
           />
         ) : (
           <div style={{
@@ -363,20 +508,23 @@ export default function JanelaConversa({
             gap: 14, flexWrap: 'wrap',
           }}>
             <span style={{ fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.55 }}>
-              Para escrever para esta pessoa, <strong>assuma a conversa</strong> — assim
-              a {nomeAgente} para de responder e vocês dois não falam ao mesmo tempo.
+              {deOutro
+                ? <><strong>{donoNome}</strong> está cuidando desta conversa. Só quem está com ela escreve para o cliente{gestor ? '; como gestor, você pode assumir.' : '.'}</>
+                : <>Para escrever para esta pessoa, <strong>assuma a conversa</strong> — assim a {nomeAgente} para de responder e vocês dois não falam ao mesmo tempo.</>}
             </span>
-            <button className="conversation-takeover" onClick={onAssumir}
+            {(!deOutro || gestor) && <button className="conversation-takeover" onClick={deOutro ? onForcarAssumir : onAssumir}
               style={{
                 display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px',
                 borderRadius: 10, border: 'none', background: 'var(--action)', color: 'var(--on-action)',
                 cursor: 'pointer', fontSize: 13, fontWeight: 600, fontFamily: FONTE,
               }}>
-              <UserCheck size={14} /> Assumir conversa
-            </button>
+              <UserCheck size={14} /> {deOutro ? `Assumir de ${donoNome}` : 'Assumir conversa'}
+            </button>}
           </div>
         )}
+        </>}
       </div>
+      {gerenciando && <GerenciarRespostas respostas={respostas} onFechar={() => setGerenciando(false)} onMudou={recarregarRespostas} />}
     </div>
   )
 }

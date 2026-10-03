@@ -29,7 +29,23 @@ export async function listarConversas(): Promise<ConversaResumo[]> {
     .limit(200)
 
   if (error) throw error
-  return (data ?? []) as ConversaResumo[]
+  const lista = (data ?? []) as ConversaResumo[]
+
+  // `adiada_ate` vem de uma consulta à parte, e não da view: a view muda de forma conforme os módulos
+  // ligados (o assistente a redefine), e esta coluna é do módulo conversas inteiro.
+  const { data: adiadas, error: erroAdiadas } = await supabase
+    .from('contatos_dados').select('id,adiada_ate').not('adiada_ate', 'is', null)
+  if (!erroAdiadas && adiadas?.length) {
+    const ate = new Map((adiadas as { id: string; adiada_ate: string }[]).map((a) => [a.id, a.adiada_ate]))
+    for (const c of lista) c.adiada_ate = ate.get(c.contato_id) ?? null
+  }
+  return lista
+}
+
+/** Tira a conversa da fila até `ate` (nulo = volta agora). O banco confere: futuro e até 30 dias. */
+export async function adiarConversa(leadId: string, ate: Date | null): Promise<void> {
+  const { error } = await supabase.rpc('conversa_adiar', { p_contato: leadId, p_ate: ate ? ate.toISOString() : null })
+  if (error) throw error
 }
 
 export async function carregarMensagens(leadId: string): Promise<MensagemWhatsapp[]> {
@@ -73,29 +89,60 @@ export async function enviarMensagem(leadId: string, texto: string): Promise<voi
 }
 
 /**
- * Assume a conversa: o assistente para de responder ESTA conversa, e só ela.
- * O agente continua atendendo todo mundo.
+ * Envia um anexo (foto, vídeo, áudio ou documento) com legenda opcional. Mesma regra do texto: um `pedido_id` por
+ * clique impede o envio em dobro, e só se vê "enviado" quando a função confirma.
  */
-export async function assumirConversa(leadId: string, usuarioId: string): Promise<void> {
-  // `contatos` é a view de leitura (sem `assumido_por`): a escrita é na tabela.
-  const { error } = await supabase
-    .from('contatos_dados')
-    .update({
-      assumido_por: usuarioId,
-      assumido_em: new Date().toISOString(),
-    })
-    .eq('id', leadId)
+export async function enviarAnexo(leadId: string, arquivo: File, legenda: string): Promise<void> {
+  const { data: sessao } = await supabase.auth.getSession()
+  const token = sessao.session?.access_token
+  if (!token) throw new Error('sessão expirada')
+  const form = new FormData()
+  form.set('contato_id', leadId); form.set('pedido_id', crypto.randomUUID()); form.set('legenda', legenda); form.set('arquivo', arquivo)
+  const r = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/whatsapp/enviar-midia`, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form })
+  const dados = await r.json().catch(() => null)
+  if (!r.ok || !dados?.ok) throw new Error(dados?.erro ?? dados?.motivo ?? 'falha_no_envio')
+}
 
+/**
+ * Pede à IA um RASCUNHO da próxima mensagem (só com o módulo assistente). Devolve texto; NÃO envia nada: a pessoa
+ * lê, ajusta e envia como qualquer outra mensagem.
+ */
+export async function pedirRascunho(leadId: string): Promise<string> {
+  const { data: sessao } = await supabase.auth.getSession()
+  const token = sessao.session?.access_token
+  if (!token) throw new Error('sessão expirada')
+  const r = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/whatsapp/rascunho`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ contato_id: leadId }),
+  })
+  const dados = await r.json().catch(() => null)
+  if (!r.ok || !dados?.ok || typeof dados.texto !== 'string') throw new Error(dados?.motivo ?? 'falha_no_rascunho')
+  return dados.texto
+}
+
+/**
+ * Assume a conversa: o assistente para de responder ESTA conversa, e só ela. O agente continua atendendo
+ * todo mundo.
+ *
+ * A troca de dono é UMA instrução atômica no banco (`conversa_assumir`, migração 0015): se outra pessoa
+ * chegou antes, nada muda e a resposta é `false`. `forcar` é do gestor, para tomar de quem já está com ela.
+ */
+export async function assumirConversa(leadId: string, forcar = false): Promise<boolean> {
+  const { data, error } = await supabase.rpc('conversa_assumir', { p_contato: leadId, p_forcar: forcar })
+  if (error) throw error
+  return data === true
+}
+
+/** Devolve a conversa a ninguém (e, com o assistente, a ele). Quem devolve fica registrado. */
+export async function devolverConversa(leadId: string): Promise<void> {
+  const { error } = await supabase.rpc('conversa_devolver', { p_contato: leadId })
   if (error) throw error
 }
 
-/** Devolve para o assistente. */
-export async function devolverConversa(leadId: string): Promise<void> {
-  const { error } = await supabase
-    .from('contatos_dados')
-    .update({ assumido_por: null, assumido_em: null })
-    .eq('id', leadId)
-
+/** Passa a conversa para outra pessoa ativa da equipe. Só quem está com ela, ou o gestor. */
+export async function transferirConversa(leadId: string, paraUsuarioId: string): Promise<void> {
+  const { error } = await supabase.rpc('conversa_transferir', { p_contato: leadId, p_para: paraUsuarioId })
   if (error) throw error
 }
 
@@ -104,9 +151,10 @@ export async function devolverConversa(leadId: string): Promise<void> {
  * sozinho (`ia_ligada` segue desligada): quem decide religar é a equipe, pelo botão da conversa.
  */
 export async function concluirEncaminhamento(leadId: string): Promise<void> {
+  await devolverConversa(leadId)
   const { error } = await supabase
     .from('contatos_dados')
-    .update({ assumido_por: null, assumido_em: null, ia_encaminhada_em: null, ia_resumo: null })
+    .update({ ia_encaminhada_em: null, ia_resumo: null })
     .eq('id', leadId)
 
   if (error) throw error
