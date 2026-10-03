@@ -14,6 +14,9 @@ import { motivoForaDaJornada } from '../lib/agenda'
 import CampoTelefone from './CampoTelefone'
 import AvisoBaixaConsulta from './AvisoBaixaConsulta'
 import FiltroPeriodo from './FiltroPeriodo'
+import EtiquetaChip from './EtiquetaChip'
+import { useEtiquetas } from '../lib/etiquetas'
+import { contatosComEtiquetas } from '../lib/etiquetasRegras'
 import {
   getPeriodRange, inRange,
   type DateRange, type PeriodKey,
@@ -623,6 +626,8 @@ export default function PessoasPage({ mode }: { mode: PessoasMode }) {
       : { start: new Date(), end: new Date() }
   })
   const [search, setSearch] = useState('')
+  const { etiquetas, porContato } = useEtiquetas()
+  const [etiquetaFiltro, setEtiquetaFiltro] = useState('')
   const [showNewLead, setShowNewLead] = useState(false)
 
   /* Limpar a etapa tira só ela da URL — o período escolhido continua valendo,
@@ -690,6 +695,7 @@ export default function PessoasPage({ mode }: { mode: PessoasMode }) {
   const displayed = searched
     .filter((l) => (mode === 'clientes' ? isCliente(l.status) : !isCliente(l.status)))
     .filter((l) => (etapa ? l.status === etapa : true))
+    .filter((l) => !etiquetaFiltro || contatosComEtiquetas(porContato, [etiquetaFiltro], [l.id]).has(l.id))
 
   /* ── Export CSV ── */
   const exportCSV = () => {
@@ -877,6 +883,11 @@ export default function PessoasPage({ mode }: { mode: PessoasMode }) {
             onBlur={(e) => (e.target.style.borderColor = 'var(--border)')}
           />
         </div>
+        {etiquetas.length > 0 && <select aria-label="Filtrar por etiqueta" value={etiquetaFiltro} onChange={(e) => setEtiquetaFiltro(e.target.value)}
+          style={{ padding: '9px 12px', borderRadius: 10, border: '1px solid var(--border)', fontSize: 13.5, fontFamily: "var(--font-body)", color: 'var(--text)', background: 'var(--surface)' }}>
+          <option value="">Todas as etiquetas</option>
+          {etiquetas.map((e) => <option key={e.id} value={e.id}>{e.nome}</option>)}
+        </select>}
         <button onClick={exportCSV} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 16px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: 'var(--text)', fontFamily: "var(--font-body)", transition: 'background 0.15s' }}
           onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.background = 'var(--page)')}
           onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.background = 'var(--surface)')}>
@@ -893,7 +904,7 @@ export default function PessoasPage({ mode }: { mode: PessoasMode }) {
       <div className="fade-in-4" style={{ background: 'var(--surface)', borderRadius: 14, border: '1px solid var(--border)', overflow: 'hidden', marginBottom: 32 }}>
         {displayed.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--muted)', fontSize: 14 }}>
-            {search ? 'Nenhum resultado para a busca.' : cfg.vazio}
+            {search || etiquetaFiltro ? 'Nenhum resultado para o filtro.' : cfg.vazio}
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
@@ -915,6 +926,9 @@ export default function PessoasPage({ mode }: { mode: PessoasMode }) {
                       <div style={{ fontWeight: 600, color: 'var(--text)' }}>{lead.nome ?? '—'}</div>
                       {lead.empresa && <div style={{ fontSize: 12, color: 'var(--muted)' }}>{lead.empresa}</div>}
                       <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>{formatarParaExibicao(lead.whatsapp)}</div>
+                      {(porContato.get(lead.id)?.size ?? 0) > 0 && <div className="tag-list" style={{ margin: '6px 0 0' }}>
+                        {etiquetas.filter((e) => porContato.get(lead.id)?.has(e.id)).map((e) => <EtiquetaChip key={e.id} etiqueta={e} />)}
+                      </div>}
                     </td>
                     <td style={{ padding: '12px 16px', color: 'var(--muted)' }}>{lead.interesses_texto ?? '—'}</td>
                     <td style={{ padding: '12px 16px' }}><StatusBadge status={lead.status} /></td>

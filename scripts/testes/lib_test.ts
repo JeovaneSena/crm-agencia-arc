@@ -84,6 +84,29 @@ Deno.test('adiar: só está adiada com data no futuro', () => {
   eq(estaAdiada({ adiada_ate: null }, agora), false); eq(estaAdiada({}, agora), false)
 })
 
+// ---------- etiquetas ----------
+import { acharPorNome, contatosComEtiquetas, nomeValido, normalizarNome, sugerir, type Etiqueta } from '../../src/lib/etiquetasRegras.ts'
+const E = (id: string, nome: string): Etiqueta => ({ id, nome, cor: 'accent' })
+Deno.test('etiquetas: nome normalizado, achado sem caixa nem espaço repetido, e validado como no banco', () => {
+  eq(normalizarNome('  Quente   demais '), 'Quente demais')
+  eq(acharPorNome([E('1', 'Quente demais')], ' quente  DEMAIS ')?.id, '1')
+  eq(acharPorNome([E('1', 'Quente')], '   '), undefined); eq(acharPorNome([E('1', 'Quente')], 'frio'), undefined)
+  eq(nomeValido('  '), false); eq(nomeValido('a'), true); eq(nomeValido('x'.repeat(30)), true); eq(nomeValido('x'.repeat(31)), false)
+  eq(nomeValido(' ' + 'x'.repeat(30) + ' '), true, 'o limite vale depois de normalizar')
+})
+Deno.test('etiquetas: sugestões escondem as que o contato já tem e põem "começa com" primeiro', () => {
+  const todas = [E('1', 'Indicação'), E('2', 'Quente'), E('3', 'Sem quente'), E('4', 'Frio')]
+  eq(sugerir(todas, 'quen', new Set()).map((e) => e.id), ['2', '3'])
+  eq(sugerir(todas, 'quen', new Set(['2'])).map((e) => e.id), ['3'])
+  eq(sugerir(todas, '', new Set(['1'])).map((e) => e.id), ['4', '2', '3'])
+})
+Deno.test('etiquetas: filtrar exige todas as escolhidas', () => {
+  const m = new Map([['a', new Set(['x', 'y'])], ['b', new Set(['x'])], ['c', new Set<string>()]])
+  eq([...contatosComEtiquetas(m, ['x'], ['a', 'b', 'c'])], ['a', 'b'])
+  eq([...contatosComEtiquetas(m, ['x', 'y'], ['a', 'b', 'c'])], ['a'])
+  eq([...contatosComEtiquetas(m, [], ['a', 'b', 'c'])], ['a', 'b', 'c'])
+})
+
 // ---------- anexos ----------
 import { problemaDoAnexo, tamanhoLegivel } from '../../src/lib/anexos.ts'
 Deno.test('anexos: a tela recusa cedo o que a função recusaria (tipo, vazio, 5 MB de imagem, 16 MB)', () => {

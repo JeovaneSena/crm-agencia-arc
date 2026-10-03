@@ -44,6 +44,8 @@
     "test:conversa-dono:db:apply": "node scripts/base-migrar.mjs apply database/base/0015_assumir_e_transferir.sql database/base/0015_check.sql --confirm",
     "test:adiar:db:rehearsal": "node scripts/base-migrar.mjs rehearse database/base/0016_adiar_conversa.sql database/base/0016_check.sql",
     "test:adiar:db:apply": "node scripts/base-migrar.mjs apply database/base/0016_adiar_conversa.sql database/base/0016_check.sql --confirm",
+    "test:etiquetas:db:rehearsal": "node scripts/base-migrar.mjs rehearse database/base/0017_etiquetas.sql database/base/0017_check.sql",
+    "test:etiquetas:db:apply": "node scripts/base-migrar.mjs apply database/base/0017_etiquetas.sql database/base/0017_check.sql --confirm",
     "test:projetos:db:rehearsal": "node scripts/base-migrar.mjs rehearse database/base/0008_modulo_projetos.sql database/base/0008_check.sql",
     "test:projetos:db:apply": "node scripts/base-migrar.mjs apply database/base/0008_modulo_projetos.sql database/base/0008_check.sql --confirm",
     "test:ui:projetos": "node scripts/browser-check.mjs --projetos",

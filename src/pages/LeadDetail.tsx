@@ -3,7 +3,7 @@ import OportunidadeReuniao from '../components/OportunidadeReuniao'
 import Oportunidades from '../components/Oportunidades'
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Phone, Clock, Save, Plus, X, CalendarDays, ClipboardList, MessagesSquare, History } from 'lucide-react'
+import { ArrowLeft, Phone, Clock, Save, Plus, X, CalendarDays, ClipboardList, MessagesSquare, History, Tag } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { isCliente } from '../lib/pessoas'
 import { formatarParaExibicao } from '../lib/telefones'
@@ -17,6 +17,7 @@ import CampoTelefone from '../components/CampoTelefone'
 import ApagarEstaPessoa from '../components/ApagarEstaPessoa'
 import ConsentimentoMarketing from '../components/ConsentimentoMarketing'
 import LinhaDoTempo from '../components/LinhaDoTempo'
+import EtiquetasDoContato from '../components/EtiquetasDoContato'
 import type { Contato, Consulta, ReuniaoStatus, Profissional, ProfissionalHorario } from '../types'
 
 /* ──────────────────────────────────────────────
@@ -487,6 +488,12 @@ export default function LeadDetail() {
           )}
           {moduloAtivo('campanhas') && <ConsentimentoMarketing contatoId={lead.id} />}
         </div>
+      </div>
+
+      <div className="fade-in-2">
+        <SectionCard title="Etiquetas" icon={Tag}>
+          <EtiquetasDoContato contatoId={lead.id} />
+        </SectionCard>
       </div>
 
       <Oportunidades leadId={lead.id} />

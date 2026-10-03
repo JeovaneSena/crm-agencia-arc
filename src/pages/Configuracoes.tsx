@@ -2,7 +2,7 @@ import SeletorTema from '../components/SeletorTema'
 import React, { useEffect, useRef, useState } from 'react'
 import {
   User, Clock, Upload, Save, MapPin, Check, Eye, EyeOff,
-  BriefcaseBusiness, KeyRound, Trash2, KanbanSquare,
+  BriefcaseBusiness, KeyRound, Trash2, KanbanSquare, Tag,
 } from 'lucide-react'
 import zxcvbn from 'zxcvbn'
 import { FORCA_CORES, FORCA_MINIMA, FORCA_ROTULOS, REGRAS_SENHA } from '../lib/senha'
@@ -11,6 +11,7 @@ import type { Usuario, ConfiguracoesNegocio, HorarioComercial } from '../types'
 import TabEmpresa from '../components/TabEmpresa'
 import TabFunil from '../components/TabFunil'
 import RetencaoDeMidia from '../components/RetencaoDeMidia'
+import TabEtiquetas from '../components/TabEtiquetas'
 import { moduloAtivo } from '../lib/modulos'
 import ConfirmDeleteModal from '../components/ConfirmDeleteModal'
 import { useAgente } from '../lib/agente'
@@ -78,7 +79,7 @@ const FUSOS = [
 
 const FUSO_PADRAO = 'America/Sao_Paulo'
 
-type TabKey = 'perfil' | 'empresa' | 'horarios' | 'funil'
+type TabKey = 'perfil' | 'empresa' | 'horarios' | 'funil' | 'etiquetas'
 
 /**
  * Só o que é configuração da empresa.
@@ -92,6 +93,7 @@ const TABS: { key: TabKey; label: string; icon: React.ElementType }[] = [
   { key: 'empresa',  label: 'Empresa',                   icon: MapPin },
   { key: 'horarios', label: 'Horários de Funcionamento', icon: Clock },
   { key: 'funil',    label: 'Funil',                     icon: KanbanSquare },
+  { key: 'etiquetas', label: 'Etiquetas',                icon: Tag },
 ]
 
 function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
@@ -793,6 +795,7 @@ export default function Configuracoes() {
         {activeTab === 'perfil' && userId && <TabPerfil userId={userId} />}
         {activeTab === 'empresa' && <><TabEmpresa />{moduloAtivo('conversas') && <RetencaoDeMidia />}</>}
         {activeTab === 'funil' && <TabFunil />}
+        {activeTab === 'etiquetas' && <TabEtiquetas />}
         {activeTab === 'horarios' && <TabHorarios />}
       </div>
 

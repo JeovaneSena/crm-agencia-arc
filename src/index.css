@@ -755,6 +755,16 @@ svg { flex-shrink: 0; }
 
 .snooze-select { flex-shrink: 0; max-width: 120px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font: 12px var(--font-body); }
 
+/* Etiquetas: selo colorido, editor da ficha e linha da tela de gestão. */
+.tag-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 600; white-space: nowrap; }
+.tag-chip button { display: inline-flex; border: 0; background: transparent; color: inherit; cursor: pointer; padding: 0; opacity: .75; }
+.tag-chip button:hover { opacity: 1; }
+.tag-list { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.tag-add { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.tag-add .arc-field { flex: 1 1 200px; width: auto; }
+.tag-row { display: grid; grid-template-columns: minmax(70px, auto) minmax(120px, 1fr) 110px auto auto auto auto; gap: 8px; align-items: center; }
+@media (max-width: 850px) { .tag-row { grid-template-columns: 1fr 1fr; } }
+
 .attach-chip { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 0 0 8px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface-subtle); font-size: 12.5px; }
 .attach-chip span { font-weight: 600; overflow-wrap: anywhere; }
 .attach-chip small { color: var(--muted); }
