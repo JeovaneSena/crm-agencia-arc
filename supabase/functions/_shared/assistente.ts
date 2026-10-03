@@ -136,7 +136,7 @@ export function montarMensagens(historico: ItemHistorico[]): MensagemLLM[] {
 const AAAA_MM_DD = /^\d{4}-\d{2}-\d{2}$/
 const reais = (v: number | null) => v === null ? 'sob consulta' : `a partir de R$ ${v.toFixed(2).replace('.', ',')}`
 
-async function executar(deps: DepsIA, contatoId: string, nome: string, a: Record<string, unknown>): Promise<{ texto: string; encaminhou?: boolean }> {
+async function executar(deps: Pick<DepsIA, 'servicos' | 'horarios' | 'encaminhar'>, contatoId: string, nome: string, a: Record<string, unknown>): Promise<{ texto: string; encaminhou?: boolean }> {
   try {
     if (nome === 'consultar_servicos') {
       const s = await deps.servicos()
@@ -235,5 +235,54 @@ export async function responderComIA(deps: DepsIA, entrada: EntradaIA): Promise<
   } catch (e) {
     console.error('assistente: falha', e instanceof Error ? e.message.slice(0, 120) : 'erro')
     return await fim({ estado: 'falhou', motivo: 'erro_interno' })
+  }
+}
+
+// ---------- o rascunho para a equipe ----------
+
+/**
+ * O RASCUNHO: a IA escreve a próxima mensagem, uma PESSOA revisa e envia. Nada sai daqui para o cliente.
+ * Por isso não passa pelas travas do atendimento automático (modo, lista de teste, conversa assumida): quem
+ * pede é alguém da equipe, olhando a conversa. Também por isso a ferramenta de chamar a equipe fica de fora.
+ */
+export type DepsRascunho = Pick<DepsIA, 'agora' | 'lerConfig' | 'historico' | 'contexto' | 'conversar' | 'servicos' | 'horarios'>
+export type ResultadoRascunho =
+  | { ok: true; texto: string }
+  | { ok: false; motivo: 'sem_configuracao' | 'sem_conversa' | 'sem_resposta' | 'falha_no_modelo' }
+
+const PEDIDO_DE_RASCUNHO = '(Escreva agora o rascunho da próxima mensagem da equipe para este cliente.)'
+const SECAO_DO_RASCUNHO = `
+
+# ESTE TEXTO É UM RASCUNHO
+Quem vai ler é uma pessoa da equipe, que revisa e envia como ela mesma. Escreva só a próxima mensagem para o cliente, sem se apresentar, sem assinar e sem falar de você. Não chame a equipe: ela já está aqui.`
+
+export async function gerarRascunho(deps: DepsRascunho, contatoId: string): Promise<ResultadoRascunho> {
+  const config = await deps.lerConfig()
+  if (!config) return { ok: false, motivo: 'sem_configuracao' }
+  const historico = await deps.historico(contatoId, 20)
+  if (!montarMensagens(historico).length) return { ok: false, motivo: 'sem_conversa' }
+  const { negocio, fuso } = await deps.contexto()
+  const sistema = montarPrompt({ nome: config.nome, negocio, instrucoes: config.instrucoes, agora: deps.agora(), fuso }) + SECAO_DO_RASCUNHO
+  const mensagens = montarMensagens([...historico, { deCliente: true, texto: PEDIDO_DE_RASCUNHO, tipo: 'texto' }])
+  const ferramentas = FERRAMENTAS.filter((f) => f.nome !== 'chamar_equipe')
+  const ferramentasDeLeitura = { ...deps, encaminhar: () => Promise.reject(new Error('indisponivel no rascunho')) }
+  const limite = Date.now() + PRAZO_TOTAL_MS
+  try {
+    let texto = ''
+    for (let rodada = 0; rodada < MAX_RODADAS; rodada++) {
+      if (Date.now() > limite) return { ok: false, motivo: 'falha_no_modelo' }
+      const r = await deps.conversar({ modelo: config.modelo, sistema, mensagens, ferramentas, maxTokens: 700 })
+      if (!r.chamadas.length) { texto = r.texto; break }
+      mensagens.push({ papel: 'assistant', conteudo: r.texto, chamadas: r.chamadas })
+      for (const c of r.chamadas) {
+        const out = await executar(ferramentasDeLeitura, contatoId, c.nome, c.argumentos)
+        mensagens.push({ papel: 'ferramenta', conteudo: out.texto, chamadaId: c.id })
+      }
+    }
+    const partes = prepararResposta(texto)
+    return partes.length ? { ok: true, texto: partes.join('\n\n') } : { ok: false, motivo: 'sem_resposta' }
+  } catch (e) {
+    console.error('rascunho: falha', e instanceof Error ? e.message.slice(0, 120) : 'erro')
+    return { ok: false, motivo: 'falha_no_modelo' }
   }
 }

@@ -7,7 +7,7 @@ import { atualizar, inserir, rpc, selecionar } from './db.ts'
 import { conversar } from './llm.ts'
 import { UAZAPI } from './uazapi.ts'
 import { abrirAviso } from './avisos.ts'
-import { responderComIA, type ConfigIA, type DepsIA } from './assistente.ts'
+import { gerarRascunho, responderComIA, type ConfigIA, type DepsIA } from './assistente.ts'
 
 export interface MensagemGravada {
   contatoId: string
@@ -112,6 +112,14 @@ function depsDoBanco(): DepsIA {
       }
     },
   }
+}
+
+/** O mesmo contrato de `gancho.ts` (a função `whatsapp` é uma só nas duas instalações): o motivo é texto livre. */
+export type ResultadoRascunho = { ok: true; texto: string } | { ok: false; motivo: string }
+
+/** Rascunho para a equipe revisar e enviar: não passa pelas travas do atendimento automático. */
+export function rascunhoDaIA(contatoId: string): Promise<ResultadoRascunho> {
+  return gerarRascunho(depsDoBanco(), contatoId)
 }
 
 export async function aposReceber(m: MensagemGravada): Promise<void> {

@@ -11,6 +11,7 @@
  *   POST /conexao/desconectar
  *   GET  /foto?whatsapp=         foto de perfil
  *   POST /apagar-pessoa          só gestor: mídias do Storage + contato (o resto cai em cascata)
+ *   POST /rascunho               equipe pede um rascunho de resposta da IA (só com o módulo assistente); NÃO envia nada
  *   POST /vigiar                 o vigia (Authorization: Bearer VIGIA_SEGREDO), a cada 5 min: mensagem presa,
  *                                conexão caída, assistente esquecido em teste; abre e fecha avisos na Central
  *
@@ -20,7 +21,7 @@ import { apagar, apagarMidias, atualizar, inserir, listarMidias, rpc, selecionar
 import { UAZAPI } from '../_shared/uazapi.ts'
 import { avaliarWebhook } from '../_shared/whatsapp.ts'
 import { usuarioDaSessao } from '../_shared/sessao.ts'
-import { aposReceber, camposDoContatoNovo } from '../_shared/gancho.ts'
+import { aposReceber, camposDoContatoNovo, rascunhoDaIA } from '../_shared/gancho.ts'
 import { vigiar, type DepsVigia } from '../_shared/vigia.ts'
 
 const SEGREDO = Deno.env.get('WEBHOOK_SEGREDO') ?? ''
@@ -48,6 +49,7 @@ export async function handler(req: Request): Promise<Response> {
     if (req.method === 'POST' && rota === '/conexao/desconectar') return await rotaDesconectar(req)
     if (req.method === 'GET' && rota === '/foto') return await rotaFoto(req)
     if (req.method === 'POST' && rota === '/apagar-pessoa') return await rotaApagarPessoa(req)
+    if (req.method === 'POST' && rota === '/rascunho') return await rotaRascunho(req)
     if (req.method === 'POST' && rota === '/vigiar') return await rotaVigiar(req)
     return json({ ok: false, motivo: 'rota_desconhecida' }, 404)
   } catch (e) {
@@ -284,4 +286,21 @@ async function rotaVigiar(req: Request): Promise<Response> {
   if (segredo.length < 24 || enviado !== segredo) return json({ ok: false, motivo: 'nao_autorizado' }, 401)
   const r = await vigiar(depsDoVigia(), async () => Number(await rpc<number>('avisos_expurgar', { p_dias: 90 })) || 0)
   return json({ ok: r.erros.length === 0, ...r }, r.erros.length ? 500 : 200)
+}
+
+// ---------------------------------------------------------------------------
+// Rascunho
+// ---------------------------------------------------------------------------
+
+/** A IA escreve, a pessoa revisa e envia: esta rota só devolve texto, nunca manda mensagem. */
+async function rotaRascunho(req: Request): Promise<Response> {
+  const usuario = await usuarioDaSessao(req)
+  if (!usuario) return json({ ok: false, motivo: 'sem_sessao' }, 401)
+  const corpo = await req.json().catch(() => ({})) as { contato_id?: string }
+  const contatoId = String(corpo.contato_id ?? '')
+  if (!UUID.test(contatoId)) return json({ ok: false, motivo: 'dados_invalidos' }, 400)
+  const r = await rascunhoDaIA(contatoId)
+  if (r.ok) return json({ ok: true, texto: r.texto })
+  const status = r.motivo === 'indisponivel' ? 404 : r.motivo === 'falha_no_modelo' ? 502 : 400
+  return json({ ok: false, motivo: r.motivo }, status)
 }

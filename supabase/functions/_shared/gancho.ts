@@ -24,3 +24,10 @@ export function aposReceber(m: MensagemGravada): Promise<void> {
   void m
   return Promise.resolve()
 }
+
+/** Rascunho de resposta para a equipe revisar. Só o módulo assistente sabe fazer; aqui, indisponível. */
+export type ResultadoRascunho = { ok: true; texto: string } | { ok: false; motivo: string }
+export function rascunhoDaIA(contatoId: string): Promise<ResultadoRascunho> {
+  void contatoId
+  return Promise.resolve({ ok: false, motivo: 'indisponivel' })
+}

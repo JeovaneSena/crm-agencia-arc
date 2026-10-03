@@ -185,3 +185,19 @@ Deno.test('envio: conversa assumida por outra pessoa é recusada; a própria e a
     com(null); assert((await post('/enviar', { contato_id: ID, texto: 'oi', pedido_id: PEDIDO }, auth)).status === 200, 'conversa livre deveria enviar')
   } finally { restaurar() }
 })
+
+Deno.test('rascunho: exige sessão e contato válido; sem a IA configurada devolve o motivo e nunca envia nada', async () => {
+  falso(); comSessao(null)
+  try {
+    assert((await post('/rascunho', { contato_id: ID })).status === 401)
+    comSessao({ papel: 'consultor', ativo: true }); chamadas.length = 0
+    assert((await post('/rascunho', { contato_id: 'x' }, auth)).status === 400)
+    // O gancho é o da instalação: vazio (sem assistente → "indisponivel", 404) ou o do assistente (sem configuração no banco falso → 400).
+    const { rascunhoDaIA } = await import('../_shared/gancho.ts')
+    const esperado = await rascunhoDaIA(ID)
+    assert(!esperado.ok)
+    const r = await post('/rascunho', { contato_id: ID }, auth)
+    assert(r.status === (esperado.motivo === 'indisponivel' ? 404 : 400) && (await r.json()).motivo === esperado.motivo)
+    assert(!chamadas.some((c) => c.url.includes('/send/') || (c.metodo === 'POST' && c.url.startsWith('/rest/v1/mensagens_whatsapp'))), 'o rascunho enviou ou gravou mensagem')
+  } finally { restaurar() }
+})

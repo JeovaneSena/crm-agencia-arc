@@ -31,6 +31,12 @@ As travas 5 a 7 são reavaliadas ao receber, depois da espera e imediatamente an
 Depois de `chamar_equipe` a trava "IA ligada na conversa" é dispensada só para enviar a
 frase de despedida; todas as outras seguem valendo.
 
+## Rascunho para a equipe
+O botão de faíscas ao lado da caixa ("Sugerir resposta com IA") pede à IA a próxima mensagem; **ela só preenche a
+caixa, nunca envia**, e a pessoa lê e ajusta antes. Vale com o assistente desligado (quem pede é a equipe, olhando
+a conversa), usa só as ferramentas de leitura (serviços e horários) e não chama a equipe. Só funciona com a caixa
+vazia, para não apagar o que a pessoa já escreveu. Rota `POST /whatsapp/rascunho`.
+
 ## Banco (`database/base/0009_modulo_assistente.sql`)
 - `assistente_config` (uma linha): modo, nome, modelo, informações do negócio (`instrucoes`),
   números de teste, limite e espera. Só se altera por `assistente_salvar_config` (gestor;

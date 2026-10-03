@@ -1,5 +1,5 @@
 // Testa a lógica do assistente sem rede nem banco: tudo entra por `DepsIA`.
-import { decidir, montarMensagens, normalizarTelefone, prepararResposta, responderComIA, type ConfigIA, type ConversaIA, type DepsIA, type EntradaIA } from './assistente.ts'
+import { gerarRascunho, decidir, montarMensagens, normalizarTelefone, prepararResposta, responderComIA, type ConfigIA, type ConversaIA, type DepsIA, type EntradaIA } from './assistente.ts'
 import { FERRAMENTAS, montarPrompt } from './assistente_prompt.ts'
 import type { PedidoLLM, RespostaLLM } from './llm.ts'
 
@@ -220,4 +220,42 @@ Deno.test('IA desligada ou conversa assumida: o pedido não é tratado aqui (nad
   const f = falso({ config: { modo: 'desligada' } })
   const r = await responderComIA(f.deps, { ...ENTRADA, texto: 'sair' })
   assert(r.estado === 'ignorada' && f.reservas === 0 && f.paradas.length === 0)
+})
+
+// ---------- o rascunho para a equipe ----------
+
+Deno.test('rascunho: devolve o texto limpo, sem enviar nem reservar nada, mesmo com o assistente desligado', async () => {
+  const f = falso({ config: { modo: 'desligada' }, respostas: [{ texto: '**Oi!** Os serviços começam em R$ 100.\n\nQuer saber mais?', chamadas: [] }] })
+  const r = await gerarRascunho(f.deps, 'c1')
+  assert(r.ok && r.texto === 'Oi! Os serviços começam em R$ 100.\n\nQuer saber mais?', JSON.stringify(r))
+  assert(f.enviados.length === 0 && f.reservas === 0 && f.finais.length === 0 && f.encaminhados.length === 0, 'rascunho não pode enviar, reservar nem encaminhar')
+})
+
+Deno.test('rascunho: o prompt avisa que é rascunho e a ferramenta de chamar a equipe fica de fora', async () => {
+  const f = falso()
+  await gerarRascunho(f.deps, 'c1')
+  assert(f.pedidos[0].sistema.includes('# ESTE TEXTO É UM RASCUNHO') && f.pedidos[0].sistema.includes('Sofia'))
+  assert(!f.pedidos[0].sistema.includes('—') && !f.pedidos[0].sistema.includes('–'), 'sem travessão no prompt')
+  assert(f.pedidos[0].ferramentas?.map((x) => x.nome).join() === 'consultar_servicos,consultar_horarios', 'sem chamar_equipe')
+  const ultima = f.pedidos[0].mensagens[f.pedidos[0].mensagens.length - 1]
+  assert(ultima.papel === 'user' && String(ultima.conteudo).includes('rascunho da próxima mensagem'), 'termina pedindo o rascunho')
+})
+
+Deno.test('rascunho: usa as ferramentas de leitura e responde com o resultado', async () => {
+  const f = falso({ respostas: [
+    { texto: '', chamadas: [{ id: 'k1', nome: 'consultar_servicos', argumentos: {} }] },
+    { texto: 'A consultoria sai a partir de R$ 100,00.', chamadas: [] },
+  ] })
+  const r = await gerarRascunho(f.deps, 'c1')
+  assert(r.ok && r.texto.includes('R$ 100'), JSON.stringify(r))
+  assert(f.pedidos.length === 2 && f.pedidos[1].mensagens.some((m) => m.papel === 'ferramenta' && String(m.conteudo).includes('Consultoria')))
+})
+
+Deno.test('rascunho: sem conversa, sem configuração, modelo fora e resposta vazia viram motivos claros', async () => {
+  const vazio = falso(); vazio.deps.historico = () => Promise.resolve([])
+  assert(JSON.stringify(await gerarRascunho(vazio.deps, 'c1')) === JSON.stringify({ ok: false, motivo: 'sem_conversa' }))
+  const semConfig = falso(); semConfig.deps.lerConfig = () => Promise.resolve(null)
+  assert(JSON.stringify(await gerarRascunho(semConfig.deps, 'c1')) === JSON.stringify({ ok: false, motivo: 'sem_configuracao' }))
+  assert(JSON.stringify(await gerarRascunho(falso({ falhaModelo: true }).deps, 'c1')) === JSON.stringify({ ok: false, motivo: 'falha_no_modelo' }))
+  assert(JSON.stringify(await gerarRascunho(falso({ respostas: [{ texto: '   ', chamadas: [] }] }).deps, 'c1')) === JSON.stringify({ ok: false, motivo: 'sem_resposta' }))
 })
