@@ -22,6 +22,7 @@ parar. Regra de ouro: nenhum trabalhador termina num `return` mudo.
 | `conexao_caida` | vigia | a conexão volta |
 | `assistente_em_teste` | vigia | o modo deixa de ser teste |
 | `tarefas_vencidas` | vigia (um por pessoa; `sem_responsavel` para as sem dono) | a pessoa zera as vencidas, ou a equipe dispensa |
+| `radar_critico` | vigia (um por pessoa; `sem_responsavel` para os sem dono) | a pessoa não tem mais negócio crítico, ou a equipe dispensa |
 | `pediu_para_parar` | assistente | a equipe dispensa |
 
 Para um aviso novo: escolha o `tipo` (minúsculas e `_`), a `chave` que distingue um problema do outro

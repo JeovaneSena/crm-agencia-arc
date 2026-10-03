@@ -23,6 +23,7 @@ import ModelosMeta from './pages/ModelosMeta'
 import Usuarios from './pages/Usuarios'
 import Avisos from './pages/Avisos'
 import Tarefas from './pages/Tarefas'
+import Radar from './pages/Radar'
 import { moduloAtivo } from './lib/modulos'
 
 export default function App() {
@@ -44,6 +45,7 @@ export default function App() {
             {moduloAtivo('campanhas') && <Route path="/campanhas/:id/editar" element={<NovaCampanha />} />}
             {moduloAtivo('campanhas') && <Route path="/campanhas/:id" element={<CampanhaDetalhe />} />}
             <Route path="/agenda" element={<Agenda />} />
+            <Route path="/radar" element={<Radar />} />
             <Route path="/tarefas" element={<Tarefas />} />
             <Route path="/avisos" element={<Avisos />} />
             {moduloAtivo('projetos') && <Route path="/projetos" element={<Projetos />} />}

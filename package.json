@@ -52,6 +52,8 @@
     "test:importar:db:apply": "node scripts/base-migrar.mjs apply database/base/0019_importar_contatos.sql database/base/0019_check.sql --confirm",
     "test:tarefas:db:rehearsal": "node scripts/base-migrar.mjs rehearse database/base/0020_tarefas.sql database/base/0020_check.sql",
     "test:tarefas:db:apply": "node scripts/base-migrar.mjs apply database/base/0020_tarefas.sql database/base/0020_check.sql --confirm",
+    "test:radar:db:rehearsal": "node scripts/base-migrar.mjs rehearse database/base/0021_radar.sql database/base/0021_check.sql",
+    "test:radar:db:apply": "node scripts/base-migrar.mjs apply database/base/0021_radar.sql database/base/0021_check.sql --confirm",
     "test:projetos:db:rehearsal": "node scripts/base-migrar.mjs rehearse database/base/0008_modulo_projetos.sql database/base/0008_check.sql",
     "test:projetos:db:apply": "node scripts/base-migrar.mjs apply database/base/0008_modulo_projetos.sql database/base/0008_check.sql --confirm",
     "test:ui:projetos": "node scripts/browser-check.mjs --projetos",

@@ -19,20 +19,23 @@ const NOMES_COR: Record<CorEtapa, string> = {
 
 export default function TabFunil() {
   const funil = useFunil()
-  const [rascunho, setRascunho] = useState<Record<string, { rotulo: string; cor: CorEtapa }>>({})
+  const [rascunho, setRascunho] = useState<Record<string, { rotulo: string; cor: CorEtapa; esfria: string }>>({})
   const [salvando, setSalvando] = useState<string | null>(null)
   const [erro, setErro] = useState('')
   const [salvo, setSalvo] = useState<string | null>(null)
 
-  const valor = (e: Etapa) => rascunho[e.chave] ?? { rotulo: e.rotulo, cor: e.cor }
-  const alterou = (e: Etapa) => valor(e).rotulo.trim() !== e.rotulo || valor(e).cor !== e.cor
+  const valor = (e: Etapa) => rascunho[e.chave] ?? { rotulo: e.rotulo, cor: e.cor, esfria: e.esfria_apos_horas == null ? '' : String(e.esfria_apos_horas) }
+  const alterou = (e: Etapa) => valor(e).rotulo.trim() !== e.rotulo || valor(e).cor !== e.cor || valor(e).esfria.trim() !== (e.esfria_apos_horas == null ? '' : String(e.esfria_apos_horas))
 
   async function guardar(e: Etapa) {
     const v = valor(e)
     const rotulo = v.rotulo.trim()
     if (!rotulo || rotulo.length > 40) { setErro('O nome da etapa precisa ter de 1 a 40 caracteres.'); return }
+    const esfria = v.esfria.trim()
+    if (e.tipo === 'aberta' && esfria && !(/^\d+$/.test(esfria) && Number(esfria) >= 1 && Number(esfria) <= 2160)) { setErro('O tempo para esfriar vai de 1 a 2160 horas (90 dias). Deixe vazio para usar 48 horas.'); return }
     setSalvando(e.chave); setErro(''); setSalvo(null)
-    const { error } = await supabase.from('etapas_funil').update({ rotulo, cor: v.cor }).eq('chave', e.chave)
+    const campos = e.tipo === 'aberta' ? { rotulo, cor: v.cor, esfria_apos_horas: esfria ? Number(esfria) : null } : { rotulo, cor: v.cor }
+    const { error } = await supabase.from('etapas_funil').update(campos).eq('chave', e.chave)
     setSalvando(null)
     if (error) { setErro('Não foi possível salvar. Confirme que você é gestor e tente de novo.'); return }
     setRascunho(r => Object.fromEntries(Object.entries(r).filter(([chave]) => chave !== e.chave)))
@@ -91,6 +94,7 @@ export default function TabFunil() {
             {CORES_ETAPA.map(c => <option key={c} value={c}>{NOMES_COR[c]}</option>)}
           </select>
         ) : <span style={{ width: 130, fontSize: 12, color: 'var(--muted)' }}>{e.tipo === 'ganho' ? 'Verde (fixo)' : 'Vermelho (fixo)'}</span>}
+        {e.tipo === 'aberta' && <input aria-label={`Esfria após, em horas, na etapa ${e.rotulo}`} className="arc-field" type="number" min={1} max={2160} inputMode="numeric" placeholder="48" title="Horas sem atividade até o radar marcar o negócio como esfriado (crítico em 3 vezes isso). Vazio = 48." value={v.esfria} onChange={ev => setRascunho(r => ({ ...r, [e.chave]: { ...valor(e), esfria: ev.target.value } }))} style={{ width: 84 }} />}
         <Button variant="primary" disabled={!alterou(e) || salvando !== null} onClick={() => void guardar(e)}>
           {salvo === e.chave ? <><Check size={14} /> Salvo</> : salvando === e.chave ? 'Salvando…' : 'Salvar'}
         </Button>
@@ -104,7 +108,8 @@ export default function TabFunil() {
       <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: '0 0 14px', lineHeight: 1.6 }}>
         Renomeie, troque a cor e reordene as etapas em andamento. O histórico das oportunidades não muda:
         só o nome que aparece na tela. <strong>Diagnóstico realizado</strong> é alcançada sozinha quando uma reunião
-        marcada acontece; você pode renomeá-la, mas ela continua existindo.
+        marcada acontece; você pode renomeá-la, mas ela continua existindo. A coluna numérica é o <strong>radar</strong>: quantas
+        horas sem atividade esfriam um negócio naquela etapa (vazio = 48; crítico em 3 vezes isso).
       </p>
       {erro && <div style={{ marginBottom: 12 }}><Notice tone="danger">{erro}</Notice></div>}
       <div role="group" aria-label="Etapas em andamento">{abertas.map(e => linha(e, true))}</div>

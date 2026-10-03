@@ -1,4 +1,4 @@
-# Núcleo do CRM: etiquetas, responsável, lote, importação, tarefas e linha do tempo
+# Núcleo do CRM: etiquetas, responsável, lote, importação, tarefas, radar e linha do tempo
 
 Funções que valem para qualquer instalação, com ou sem módulos.
 
@@ -38,6 +38,23 @@ vem; "Adiar…" muda o prazo sem abrir formulário.
   fecha quando ela zera as vencidas. **Limite:** o vigia mora no módulo conversas; numa instalação só com o núcleo a tela
   Tarefas funciona, mas a Central não avisa.
 
+## Radar de quem esfriou (migração 0021)
+**Radar** no menu: os negócios abertos que ficaram parados. Um negócio sem próximo passo morre sem ninguém ver; o radar o
+torna visível e a ação ao lado ("Combinar próximo passo") já cria uma tarefa ligada ao contato e ao negócio.
+- **Última atividade** = o mais recente entre criação do negócio, mudança de etapa, última mensagem do contato, reunião
+  marcada ou já passada e tarefa concluída.
+- **Janela de esfriamento por etapa** (Configurações → Funil, coluna numérica; vazio = 48 h). "Sem resposta há 3 dias" é
+  normal numa negociação e é abandono num diagnóstico. **Crítico = 3 vezes a janela.**
+- **Em voo**: passou da janela mas tem próximo passo à frente — tarefa com prazo no futuro, reunião marcada ou "retomar
+  em" depois de hoje. **Tarefa vencida não protege**: prazo estourado é a mesma morte, com data.
+- Faixas: **Críticos**, **Em risco** (sem próximo passo) e **Em voo**; dentro de cada uma, o mais frio primeiro. Filtro
+  Meus / Todos / Sem responsável, e o valor das propostas que estão esfriando.
+- A regra mora no banco (`radar_negocios`), num lugar só: a tela e o vigia não discordam. O vigia abre um aviso por pessoa
+  com negócios críticos e o fecha quando ela não tem mais nenhum (mesmos limites das tarefas vencidas: depende do vigia,
+  que mora no módulo conversas).
+- Todo contato novo nasce com uma "oportunidade inicial" (gatilho da base), então um contato que ninguém atende entra no
+  radar depois de 48 h.
+
 ## Linha do tempo (ficha do contato)
 Junta, do mais novo ao mais velho: mudanças de etapa de todas as oportunidades, reuniões, avisos da Central, tarefas
 concluídas e a última mensagem do cliente; com o módulo conversas, também as notas internas e as passagens de conversa (quem assumiu,
@@ -45,4 +62,4 @@ transferiu ou devolveu).
 
 ## Testes
 `npm run test:lib` (regras de etiquetas, importação, anexos, adiar, respostas rápidas e linha do tempo) e os de banco
-`test:etiquetas|responsavel|importar|tarefas:db:rehearsal` (e `:apply` num projeto descartável).
+`test:etiquetas|responsavel|importar|tarefas|radar:db:rehearsal` (e `:apply` num projeto descartável).

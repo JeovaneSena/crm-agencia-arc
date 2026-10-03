@@ -794,3 +794,18 @@ svg { flex-shrink: 0; }
 .tarefa-apagar:hover:not(:disabled) { background: var(--danger-soft); color: var(--danger); }
 .tarefa-check:disabled, .tarefa-apagar:disabled { opacity: .5; cursor: not-allowed; }
 @media (max-width: 850px) { .tarefa-form-linha { grid-template-columns: 1fr; } .tarefa-linha { flex-wrap: wrap; } }
+
+/* Radar: grupos por faixa e linhas com a ação de combinar o próximo passo. */
+.radar-grupo { margin: 0 0 22px; }
+.radar-grupo h2 { margin: 0 0 2px; font-size: 16px; }
+.radar-grupo h2 span { font-size: 12.5px; font-weight: 500; color: var(--muted); margin-left: 6px; }
+.radar-grupo > p { margin: 0 0 8px; color: var(--muted); font-size: 13px; }
+.radar-grupo ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.radar-linha { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 2px; border-bottom: 1px solid var(--border-subtle); }
+.radar-linha:last-child { border-bottom: 0; }
+.radar-corpo { flex: 1 1 280px; min-width: 0; display: grid; gap: 2px; }
+.radar-corpo strong a { color: var(--text); }
+.radar-corpo small { color: var(--muted); overflow-wrap: anywhere; }
+.radar-parado.radar-critico { color: var(--danger); font-weight: 600; }
+.radar-parado.radar-em_risco { color: var(--warning); font-weight: 600; }
+.radar-form { flex: 1 1 100%; padding: 12px; border-radius: 10px; background: var(--surface-subtle); }

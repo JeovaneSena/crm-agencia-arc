@@ -57,6 +57,12 @@ const tarefasMock=[
  {...tarefaBase,id:'t-feita',titulo:'Enviar a minuta do contrato',vence_em:diasAdiante(-1),contato_id:lead.id,responsavel_id:'00000000-0000-4000-8000-000000000001',concluida_em:new Date(Date.now()-3600000).toISOString(),concluida_por:'00000000-0000-4000-8000-000000000001',contato:{id:lead.id,nome:lead.nome}},
  {...tarefaBase,id:'t-outra',titulo:'Tarefa de OUTRA pessoa',vence_em:diasAdiante(5),contato_id:'outro-contato',responsavel_id:null,contato:{id:'outro-contato',nome:'Outra'}},
 ]
+const radarBase={contato_nome:'Contato de teste',valor_proposta:null,protegido_por:null,esfria_apos_horas:48,ultima_atividade:now}
+const radarMock=[
+ {...radarBase,oportunidade_id:'opp-crit',contato_id:lead.id,nome:'Site institucional',etapa:'proposta',valor_proposta:5000,responsavel_id:'00000000-0000-4000-8000-000000000001',horas_parado:200,faixa:'critico'},
+ {...radarBase,oportunidade_id:'opp-risco',contato_id:'c2',contato_nome:'Joana Prado',nome:'Tráfego pago',etapa:'qualificacao',responsavel_id:null,horas_parado:60,faixa:'em_risco'},
+ {...radarBase,oportunidade_id:'opp-voo',contato_id:'c3',contato_nome:'Pedro Alves',nome:'Landing page',etapa:'negociacao',responsavel_id:'00000000-0000-4000-8000-0000000000aa',horas_parado:100,faixa:'em_voo',protegido_por:'tarefa'},
+]
 const browser = await chromium.launch({headless:true,args:['--no-sandbox']})
 const context = await browser.newContext({viewport:{width:1440,height:1000}})
 const errors=[]
@@ -64,7 +70,7 @@ const page = await context.newPage()
 page.on('pageerror',e=>errors.push(e.message))
 const dias = Array.from({length:7},(_,i)=>i)
 const tabelas = {
- avisos:()=>avisos.filter(a=>!a.resolvido_em), tarefas:()=>tarefasMock, etiquetas:()=>ETQ, contato_etiquetas:()=>paresEtq, contatos:()=>[lead], reunioes:()=>[meeting], profissionais:()=>[professional], catalogo_servicos:()=>services,
+ avisos:()=>avisos.filter(a=>!a.resolvido_em), tarefas:()=>tarefasMock, radar_negocios:()=>radarMock, etiquetas:()=>ETQ, contato_etiquetas:()=>paresEtq, contatos:()=>[lead], reunioes:()=>[meeting], profissionais:()=>[professional], catalogo_servicos:()=>services,
  oportunidades:()=>[opportunity,...abertasMock], etapas_funil:()=>[], horario_comercial:()=>[],
  profissional_horarios:()=>dias.map(d=>({id:`h${d}`,profissional_id:professional.id,dia_semana:d,hora_inicio:'08:00',hora_fim:'18:00',ativo:true})),
  projetos:()=>[{id:'proj-1',contato_id:lead.id,oportunidade_id:opportunity.id,nome:'Projeto da venda inicial',etapa:'planejamento',prazo:null,escopo:'Escopo inicial',responsavel_id:null,created_at:now,updated_at:now,cliente:{nome:lead.nome,empresa:lead.empresa,status:lead.status},oportunidade:{nome:opportunity.nome,status:'ganho',cancelado_em:null}}],
@@ -114,7 +120,7 @@ try {
  assert(!proibido.test(await page.locator('body').innerText()),'Marca ou texto de nicho no login')
  await page.evaluate(({project,session})=>localStorage.setItem(`sb-${project}-auth-token`,JSON.stringify(session)),{project,session})
  // Núcleo apenas: sem VITE_MODULOS, módulos opcionais não aparecem no menu.
- const rotas=['/','/crm','/leads','/clientes','/servicos','/equipe','/agenda','/tarefas','/avisos',`/leads/${lead.id}`,'/configuracoes','/usuarios']
+ const rotas=['/','/crm','/leads','/clientes','/servicos','/equipe','/agenda','/radar','/tarefas','/avisos',`/leads/${lead.id}`,'/configuracoes','/usuarios']
  for(const path of rotas){
   await page.goto(base+path)
   await page.waitForTimeout(600)
@@ -230,6 +236,39 @@ try {
  assert(await page.getByRole('link',{name:'Tarefas'}).count()>=1,'tarefas: item no menu do núcleo')
  console.log('PASS tarefas: grupos, filtros, criar, concluir, reabrir, adiar, apagar e ficha')
 
+ // Radar: faixas, filtro, "combinar próximo passo" cria tarefa ligada ao negócio; janela por etapa em Configurações → Funil.
+ tarefaCriada=null
+ await page.goto(base+'/radar')
+ await page.getByRole('heading',{name:'Radar',exact:true}).waitFor()
+ await page.getByText('Site institucional').waitFor()
+ let radar=await page.locator('.page-content').innerText()
+ assert(radar.includes('sem atividade há 8 dias')&&/R\$\s?5\.000/.test(radar),'radar: faltou o tempo parado por extenso e o valor da proposta')
+ assert.equal(await page.getByRole('region',{name:'Críticos'}).count(),1,'radar: sem o grupo Críticos')
+ assert(!radar.includes('Joana Prado')&&!radar.includes('Pedro Alves'),'radar: "Meus" mostrou negócio de outra pessoa ou sem responsável')
+ await page.getByRole('tab',{name:'Todos'}).click()
+ await page.getByText('Joana Prado').waitFor()
+ radar=await page.locator('.page-content').innerText()
+ assert(radar.includes('Em risco')&&radar.includes('Em voo')&&radar.includes('tem tarefa agendada')&&radar.includes('sem responsável'),'radar: "Todos" sem as faixas Em risco e Em voo')
+ assert.equal(await page.getByRole('region',{name:'Em voo'}).getByRole('button',{name:'Combinar próximo passo'}).count(),0,'radar: negócio em voo já tem próximo passo, não precisa do botão')
+ await page.getByRole('tab',{name:'Sem responsável'}).click()
+ assert(!(await page.locator('.page-content').innerText()).includes('Pedro Alves'),'radar: "Sem responsável" mostrou negócio com dono')
+ await page.getByRole('tab',{name:'Meus'}).click()
+ await page.getByRole('button',{name:'Combinar próximo passo'}).click()
+ await page.getByLabel('O que precisa ser feito').fill('Ligar para retomar a proposta')
+ await page.getByRole('button',{name:'Amanhã, 9h'}).click(); await page.getByRole('button',{name:'Criar tarefa'}).click(); await page.waitForTimeout(500)
+ assert.deepEqual(tarefaCriada,{titulo:'Ligar para retomar a proposta',vence_em:amanha9.toISOString(),detalhe:null,contato_id:lead.id,oportunidade_id:'opp-crit',responsavel_id:null},'radar: a tarefa deveria nascer ligada ao contato e ao negócio')
+ let janela=null
+ await context.route('**/rest/v1/etapas_funil*',async r=>{if(r.request().method()!=='PATCH')return r.fallback();janela=r.request().postDataJSON();await r.fulfill({status:200,contentType:'application/json',body:'[]'})})
+ await page.goto(base+'/configuracoes'); await page.getByRole('button',{name:'Funil'}).click()
+ const campoJanela=page.getByLabel('Esfria após, em horas, na etapa Proposta')
+ await campoJanela.fill('5000')
+ await page.locator('.funil-linha').filter({has:campoJanela}).getByRole('button',{name:'Salvar'}).click()
+ await page.getByText('O tempo para esfriar vai de 1 a 2160 horas').waitFor()
+ assert.equal(janela,null,'radar: gravou uma janela fora do limite')
+ await campoJanela.fill('72')
+ await page.locator('.funil-linha').filter({has:campoJanela}).getByRole('button',{name:'Salvar'}).click(); await page.waitForTimeout(500)
+ assert.equal(janela?.esfria_apos_horas,72,'radar: a janela da etapa não foi gravada')
+ console.log('PASS radar: faixas, filtros, próximo passo e janela por etapa')
  // CRM: responsável no cartão, filtro "Minhas" e ações em lote (a função do banco é tudo-ou-nada).
  await page.goto(base+'/crm')
  await page.getByText('Responsável: Equipe Teste').waitFor(); await page.locator('.crm-deal-owner',{hasText:'Sem responsável'}).first().waitFor()

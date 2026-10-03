@@ -35,13 +35,18 @@ Data: 03/10/2026. Referência: repositório público `melgarafael/DeskcommCRM`, 
     "SAIR" pela uazapi com o assistente desligado ainda não revoga o marketing (limite da fase 1).
 
 - **Fase 3 (nenhum lead morre em silêncio): em andamento, começou em 03/10/2026. Nada publicado ainda (alterações no
-  diretório de trabalho, sem commit).** Ordem: tarefas, radar, volta automática ao assistente e recuperação de falta,
+  diretório de trabalho, sem commit).** Ordem: tarefas, radar (ambos feitos), volta automática ao assistente e recuperação de falta,
   lembretes de reunião, follow-up v1 (os dois últimos dependem do canal de envio: decisão pendente 2).
   - **Tarefas (0020): feitas.** Tela Tarefas, seção na ficha, tarefa concluída na linha do tempo, aviso "um por pessoa" no
     vigia (`aviso_resolver_exceto`). Ensaiado em PGlite (com troca de regra de propósito para provar que o ensaio falha),
     testes Deno e de tela, instalação gerada só com o núcleo e com todos os módulos. **Nada foi aplicado em Supabase real.**
     Ver `docs/NUCLEO_DO_CRM.md`. Limite: o aviso de vencidas depende do vigia (módulo conversas); só com o núcleo, a tela
     funciona e a Central não avisa.
+  - **Radar (0021): feito.** Tela Radar (faixas crítico / em risco / em voo, filtro, "combinar próximo passo" que cria tarefa
+    ligada ao negócio), janela de esfriamento por etapa em Configurações → Funil, aviso "um por pessoa" no vigia. A regra é
+    uma função do banco (`radar_negocios`). Mesmos ensaios das tarefas, com troca de regra de propósito. Ver `docs/NUCLEO_DO_CRM.md`.
+  - **Decisão de 03/10:** lembretes de reunião e follow-up serão estruturados para os DOIS canais (uazapi com texto livre e
+    Meta com modelo aprovado e janela de 24 h), não só um.
   - Corrigido de passagem: `browser-check` falhava em `--assistente` e `--campanhas` por um teste que ignorava que esses
     módulos ligam as conversas (já falhava no commit `c2cca6a`).
 

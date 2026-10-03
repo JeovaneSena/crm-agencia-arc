@@ -7,7 +7,8 @@ function assert(v: unknown, m = 'Assertion failed'): asserts v { if (!v) throw n
 interface Chamada { nome: string; args: Record<string, unknown> }
 function falso(o: {
   agora?: string; presas?: MensagemPresa[]; leituras?: (string | null)[]; assistente?: { modo: string; desde: string } | null
-  quebrar?: 'mensagens' | 'conexao' | 'assistente' | 'midias' | 'adiadas' | 'tarefas'; midias?: number; adiadas?: { contatoId: string; nome: string | null }[]
+  quebrar?: 'mensagens' | 'conexao' | 'assistente' | 'midias' | 'adiadas' | 'tarefas' | 'radar'; midias?: number; adiadas?: { contatoId: string; nome: string | null }[]
+  radar?: { responsavelId: string | null; nome: string | null; quantidade: number }[] | null
   tarefas?: { responsavelId: string | null; nome: string | null; quantidade: number; maisAntiga: string }[] | null
 } = {}) {
   const f = { chamadas: [] as Chamada[], marcadas: [] as string[], esperas: [] as number[], antesDe: null as Date | null }
@@ -22,6 +23,7 @@ function falso(o: {
     estadoDaConexao: () => { if (o.quebrar === 'conexao') return Promise.reject(new Error('uazapi fora')); return Promise.resolve(leituras.length > 1 ? leituras.shift()! : leituras[0]) },
     reabrirAdiadas: () => { if (o.quebrar === 'adiadas') return Promise.reject(new Error('banco fora')); return Promise.resolve(o.adiadas ?? []) },
     tarefasVencidas: () => { if (o.quebrar === 'tarefas') return Promise.reject(new Error('banco fora')); return Promise.resolve(o.tarefas === null ? null : (o.tarefas ?? []).map((t) => ({ ...t, maisAntiga: new Date(t.maisAntiga) }))) },
+    negociosCriticos: () => { if (o.quebrar === 'radar') return Promise.reject(new Error('banco fora')); return Promise.resolve(o.radar === undefined ? [] : o.radar) },
     removerMidiasVencidas: () => { if (o.quebrar === 'midias') return Promise.reject(new Error('storage fora')); return Promise.resolve(o.midias ?? 0) },
     assistente: () => { if (o.quebrar === 'assistente') return Promise.reject(new Error('banco fora')); return Promise.resolve(o.assistente ? { modo: o.assistente.modo, desde: new Date(o.assistente.desde) } : null) },
   }
@@ -177,4 +179,33 @@ Deno.test('tarefas que falham não derrubam as outras verificações', async () 
   const t = falso({ quebrar: 'tarefas', leituras: ['desconectado', 'desconectado'] })
   const r = await vigiar(t.deps, semFaxina)
   assert(r.erros.join() === 'tarefas' && r.conexao === 'caida' && t.exceto().length === 0)
+})
+
+Deno.test('radar: um aviso por pessoa com negócios críticos e fecha quem zerou', async () => {
+  const t = falso({ radar: [{ responsavelId: 'u1', nome: ' Ana ', quantidade: 2 }, { responsavelId: 'u2', nome: 'Bruno', quantidade: 1 }, { responsavelId: null, nome: null, quantidade: 3 }] })
+  const r = await vigiar(t.deps, semFaxina)
+  assert(r.negociosCriticos === 6)
+  const a = t.abertos().filter((x) => x.p_tipo === 'radar_critico')
+  assert(a.length === 3 && a.every((x) => x.p_rota === '/radar' && x.p_gravidade === 'atencao'))
+  assert(a[0].p_chave === 'u1' && a[0].p_titulo === 'Ana tem 2 negócios críticos sem próximo passo')
+  assert(a[1].p_titulo === 'Bruno tem 1 negócio crítico sem próximo passo')
+  assert(a[2].p_chave === 'sem_responsavel' && a[2].p_titulo === '3 negócios críticos estão sem responsável')
+  const e = t.exceto('radar_critico')
+  assert(e.length === 1 && JSON.stringify(e[0].p_chaves) === JSON.stringify(['u1', 'u2', 'sem_responsavel']))
+})
+
+Deno.test('radar: nenhum crítico fecha todos os avisos do tipo; sem o radar instalado não mexe em nada', async () => {
+  const vazio = falso({ radar: [] })
+  await vigiar(vazio.deps, semFaxina)
+  const e = vazio.exceto('radar_critico')
+  assert(e.length === 1 && JSON.stringify(e[0].p_chaves) === '[]' && vazio.abertos().filter((x) => x.p_tipo === 'radar_critico').length === 0)
+  const sem = falso({ radar: null })
+  const r = await vigiar(sem.deps, semFaxina)
+  assert(r.negociosCriticos === 0 && sem.exceto('radar_critico').length === 0)
+})
+
+Deno.test('radar que falha não derruba as outras verificações', async () => {
+  const t = falso({ quebrar: 'radar', leituras: ['desconectado', 'desconectado'] })
+  const r = await vigiar(t.deps, semFaxina)
+  assert(r.erros.join() === 'radar' && r.conexao === 'caida')
 })

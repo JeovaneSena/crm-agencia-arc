@@ -20,6 +20,8 @@ export interface Etapa {
   cor: CorEtapa
   ordem: number
   tipo: TipoEtapa
+  /** Horas de silêncio que esfriam um negócio nesta etapa (radar, migração 0021). Vazio = padrão do banco (48). */
+  esfria_apos_horas: number | null
 }
 
 export const CORES_ETAPA: CorEtapa[] = ['accent', 'info', 'success', 'warning', 'purple', 'danger']
@@ -33,7 +35,7 @@ const PADRAO: Etapa[] = [
   ['novo_lead', 'accent', 'aberta'], ['qualificacao', 'info', 'aberta'], ['diagnostico', 'success', 'aberta'],
   ['diagnostico_realizado', 'success', 'aberta'], ['proposta', 'warning', 'aberta'], ['negociacao', 'purple', 'aberta'],
   ['ganho', 'success', 'ganho'], ['perdido', 'danger', 'perdido'],
-].map(([chave, cor, tipo], i) => ({ chave: chave as LeadStatus, rotulo: ROTULO_LEAD[chave as LeadStatus], cor: cor as CorEtapa, ordem: i + 1, tipo: tipo as TipoEtapa }))
+].map(([chave, cor, tipo], i) => ({ chave: chave as LeadStatus, rotulo: ROTULO_LEAD[chave as LeadStatus], cor: cor as CorEtapa, ordem: i + 1, tipo: tipo as TipoEtapa, esfria_apos_horas: null }))
 
 let etapas: Etapa[] = PADRAO
 let carregou = false
@@ -41,7 +43,7 @@ const ouvintes = new Set<() => void>()
 const avisar = () => ouvintes.forEach(f => f())
 
 export async function recarregarFunil() {
-  const { data, error } = await supabase.from('etapas_funil').select('chave, rotulo, cor, ordem, tipo').order('ordem')
+  const { data, error } = await supabase.from('etapas_funil').select('chave, rotulo, cor, ordem, tipo, esfria_apos_horas').order('ordem')
   if (error || !data?.length) return
   etapas = data as Etapa[]
   avisar()

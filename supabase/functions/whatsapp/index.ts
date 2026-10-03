@@ -14,7 +14,7 @@
  *   POST /apagar-pessoa          só gestor: mídias do Storage + contato (o resto cai em cascata)
  *   POST /rascunho               equipe pede um rascunho de resposta da IA (só com o módulo assistente); NÃO envia nada
  *   POST /vigiar                 o vigia (Authorization: Bearer VIGIA_SEGREDO), a cada 5 min: mensagem presa,
- *                                conexão caída, assistente esquecido em teste, tarefas vencidas; abre e fecha avisos na Central
+ *                                conexão caída, assistente esquecido em teste, tarefas vencidas, negócios críticos no radar; abre e fecha avisos na Central
  *
  * Escreve em `mensagens_whatsapp` com a service_role; a equipe só lê.
  */
@@ -328,6 +328,12 @@ function depsDoVigia(): DepsVigia {
       try {
         const v = await rpc<{ responsavel_id: string | null; nome: string | null; quantidade: number; mais_antiga: string }[]>('tarefas_vencidas_por_responsavel', {})
         return (v ?? []).map((x) => ({ responsavelId: x.responsavel_id, nome: x.nome, quantidade: Number(x.quantidade), maisAntiga: new Date(x.mais_antiga) }))
+      } catch (e) { if (semFuncao(e)) return null; throw e }
+    },
+    async negociosCriticos() {
+      try {
+        const v = await rpc<{ responsavel_id: string | null; nome: string | null; quantidade: number }[]>('radar_criticos_por_responsavel', {})
+        return (v ?? []).map((x) => ({ responsavelId: x.responsavel_id, nome: x.nome, quantidade: Number(x.quantidade) }))
       } catch (e) { if (semFuncao(e)) return null; throw e }
     },
     async removerMidiasVencidas() {

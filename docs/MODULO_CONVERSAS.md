@@ -66,6 +66,8 @@ sozinho e abre ou fecha avisos na Central (`/avisos`, migração 0011):
 - **conversa adiada** cuja hora chegou: volta para a fila e abre um aviso.
 - **tarefas vencidas** (migração 0020, ver `NUCLEO_DO_CRM.md`): um aviso por pessoa, "Ana tem 3 tarefas vencidas", fechado
   quando ela zera as vencidas. Sem a migração 0020 aplicada, ignorado.
+- **radar** (migração 0021, ver `NUCLEO_DO_CRM.md`): um aviso por pessoa com negócios críticos, fechado quando ela não
+  tem mais nenhum. Sem a migração 0021 aplicada, ignorado.
 - **retenção de mídia**: se o gestor definiu um prazo, apaga os arquivos vencidos (ver acima).
 - a cada hora, apaga avisos resolvidos há mais de 90 dias.
 

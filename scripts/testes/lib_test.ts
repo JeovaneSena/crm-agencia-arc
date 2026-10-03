@@ -162,6 +162,7 @@ Deno.test('anexos: tamanho legível', () => { eq(tamanhoLegivel(500), '1 KB'); e
 
 // ---------- linha do tempo ----------
 import { montarLinhaDoTempo } from '../../src/lib/linhaDoTempo.ts'
+import { agruparRadar, filtrarRadar, rotuloParado, valorPorFaixa, type NegocioDoRadar } from '../../src/lib/radarRegras.ts'
 import { agruparTarefas, contarVencidas, doCampoDeData, grupoDaTarefa, paraCampoDeData, prazosRapidos, rotuloDoPrazo, validarNovaTarefa, type Tarefa } from '../../src/lib/tarefasRegras.ts'
 Deno.test('linha do tempo: junta etapas, reuniões, avisos, notas e passagens, do mais novo ao mais velho', () => {
   const r = montarLinhaDoTempo({
@@ -257,4 +258,30 @@ Deno.test('tarefas: conta vencidas no total e por responsável (null = sem respo
   eq(contarVencidas(lista, AGORA, 'ana'), 2)
   eq(contarVencidas(lista, AGORA, null), 1)
   eq(contarVencidas(lista, AGORA, 'bruno'), 0)
+})
+
+
+// ── Radar (0021): a classificação é do banco; aqui só rótulos e agrupamento. ──
+const N = (id: string, faixa: NegocioDoRadar['faixa'], o: Partial<NegocioDoRadar> = {}): NegocioDoRadar => ({ oportunidade_id: id, contato_id: `c-${id}`, contato_nome: id, nome: 'Negócio', etapa: 'novo_lead', valor_proposta: null, responsavel_id: null, ultima_atividade: '2026-10-01T00:00:00Z', horas_parado: 60, esfria_apos_horas: 48, faixa, protegido_por: null, ...o })
+
+Deno.test('radar: tempo parado em horas até 2 dias, depois em dias', () => {
+  eq(rotuloParado(0), '0 h'); eq(rotuloParado(5.9), '5 h'); eq(rotuloParado(47), '47 h')
+  eq(rotuloParado(48), '2 dias'); eq(rotuloParado(100), '4 dias'); eq(rotuloParado(-3), '0 h')
+})
+
+Deno.test('radar: agrupa por faixa mantendo a ordem do banco e ignora faixa desconhecida', () => {
+  const g = agruparRadar([N('a', 'em_risco'), N('b', 'critico'), N('c', 'critico'), N('d', 'em_voo'), N('x', 'inventada' as NegocioDoRadar['faixa'])])
+  eq(g.critico.map((n) => n.oportunidade_id), ['b', 'c']); eq(g.em_risco.map((n) => n.oportunidade_id), ['a']); eq(g.em_voo.map((n) => n.oportunidade_id), ['d'])
+})
+
+Deno.test('radar: filtro por pessoa — "meus" sem sessão não mostra nada', () => {
+  const lista = [N('1', 'critico', { responsavel_id: 'ana' }), N('2', 'critico', { responsavel_id: 'bia' }), N('3', 'em_risco')]
+  eq(filtrarRadar(lista, 'meus', 'ana').map((n) => n.oportunidade_id), ['1'])
+  eq(filtrarRadar(lista, 'sem_responsavel', 'ana').map((n) => n.oportunidade_id), ['3'])
+  eq(filtrarRadar(lista, 'todos', 'ana').length, 3)
+  eq(filtrarRadar(lista, 'meus', null), []); eq(filtrarRadar(lista, 'meus', undefined), [])
+})
+
+Deno.test('radar: soma só propostas com valor, por faixa', () => {
+  eq(valorPorFaixa([N('1', 'critico', { valor_proposta: 1000 }), N('2', 'critico', { valor_proposta: 500.5 }), N('3', 'em_risco', { valor_proposta: null }), N('4', 'em_voo', { valor_proposta: 0 }), N('5', 'em_voo', { valor_proposta: -9 })]), { critico: 1500.5, em_risco: 0, em_voo: 0 })
 })
