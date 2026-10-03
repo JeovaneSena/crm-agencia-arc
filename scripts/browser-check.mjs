@@ -77,7 +77,7 @@ const tabelas = {
  campanhas_lista:()=>[campanhaLinha], campanhas:()=>[campanhaCompleta], campanha_destinatarios:()=>destinatarios, campanha_eventos:()=>[{id:'ev1',tipo:'publico_congelado',descricao:'Público congelado para revisão.',criado_em:now}],
  campanhas_controle:()=>[{id:true,pausado:false,pausa_motivo:null,limite_por_minuto:30,limite_diario:250,usados_no_dia:12,proximo_disparo_em:now,atualizada_em:now}],
  marketing_consentimentos:()=>consentimentoRegistrado?[{contato_id:lead.id,ativo:true,consentido_em:now,revogado_em:null,fonte:'pediu pelo WhatsApp'}]:[],
- assistente_config:()=>[{id:true,modo:'desligada',nome:'Assistente',modelo:'claude-sonnet-5-5',instrucoes:null,numeros_teste:[],max_respostas:12,espera_segundos:6,updated_by:null,updated_at:now}],
+ assistente_config:()=>[{id:true,modo:'desligada',nome:'Assistente',modelo:'claude-sonnet-5-5',instrucoes:null,numeros_teste:[],max_respostas:12,espera_segundos:6,devolver_apos_minutos:null,updated_by:null,updated_at:now}],
  assistente_respostas:()=>[{mensagem_id:'r1',contato_id:lead.id,estado:'ignorada',motivo:'ia_desligada',created_at:now},{mensagem_id:'r2',contato_id:lead.id,estado:'falhou',motivo:'erro_interno',created_at:now}],
  conversa_eventos:()=>[{id:'ce1',contato_id:lead.id,tipo:'transferiu',de_usuario:user.id,para_usuario:'00000000-0000-4000-8000-0000000000aa',por_usuario:user.id,created_at:now}],
  notas_conversa:()=>[{id:'n1',contato_id:lead.id,texto:'Cliente prefere falar às terças.',autor_id:user.id,created_at:now,autor:{nome:'Equipe Teste'}}],
@@ -452,8 +452,17 @@ try {
   assert(tela.includes('Desligado')&&tela.includes('Ao vivo')&&tela.includes('confira a chave do modelo'),'tela do assistente incompleta')
   await page.getByRole('radio',{name:/Teste/}).check()
   await page.getByLabel(/Números de teste/).fill('(11) 98765-4321')
+  assert(tela.includes('Se a equipe não responder, o assistente volta a atender'),'falta o campo da volta automática')
+  const prazo=page.getByLabel(/o assistente volta a atender depois de/)
+  assert(await prazo.inputValue()==='','o prazo da volta automática deveria nascer vazio (nunca)')
+  await prazo.fill('45')
   await page.getByRole('button',{name:'Salvar'}).click()
   await page.waitForTimeout(400)
+  assert(salvoCfg?.p_devolver_apos===45,'salvar não enviou o prazo da volta automática')
+  await prazo.fill('')
+  await page.getByRole('button',{name:'Salvar'}).click()
+  await page.waitForTimeout(400)
+  assert(salvoCfg?.p_devolver_apos===null,'prazo em branco deveria ir como nulo (nunca volta sozinho)')
   assert(salvoCfg?.p_modo==='teste'&&salvoCfg.p_numeros?.[0]==='(11) 98765-4321'&&salvoCfg.p_modelo==='claude-sonnet-5-5','salvar não chamou a função com modo e números')
   console.log('PASS assistente: encaminhamento, ligar na conversa e configuração')
  }

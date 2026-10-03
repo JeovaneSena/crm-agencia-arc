@@ -7,7 +7,7 @@ import { PageHeader, LoadingState, Notice, Card } from '../components/ui'
 type Modo = 'desligada' | 'teste' | 'ao_vivo'
 interface Config {
   modo: Modo; nome: string; modelo: string; instrucoes: string | null
-  numeros_teste: string[]; max_respostas: number; espera_segundos: number; updated_at: string
+  numeros_teste: string[]; max_respostas: number; espera_segundos: number; devolver_apos_minutos: number | null; updated_at: string
 }
 interface Resposta { mensagem_id: string; estado: string; motivo: string | null; created_at: string }
 
@@ -63,7 +63,7 @@ export default function Assistente() {
     const { error } = await supabase.rpc('assistente_salvar_config', {
       p_modo: config.modo, p_nome: config.nome, p_modelo: config.modelo, p_instrucoes: config.instrucoes ?? '',
       p_numeros: numeros.split(/[\n,;]+/).map(n => n.trim()).filter(Boolean),
-      p_max_respostas: config.max_respostas, p_espera: config.espera_segundos,
+      p_max_respostas: config.max_respostas, p_espera: config.espera_segundos, p_devolver_apos: config.devolver_apos_minutos,
     })
     setSalvando(false)
     if (error) {
@@ -103,6 +103,12 @@ export default function Assistente() {
         <label>Máximo de respostas por conversa<input type="number" min={1} max={100} style={campo} value={config.max_respostas} onChange={e => muda({ max_respostas: Number(e.target.value) })} /></label>
         <label>Espera antes de responder (segundos)<input type="number" min={0} max={30} style={campo} value={config.espera_segundos} onChange={e => muda({ espera_segundos: Number(e.target.value) })} /></label>
       </div>
+
+      <label>Se a equipe não responder, o assistente volta a atender depois de (minutos)
+        <input type="number" min={5} max={1440} placeholder="Nunca" style={{ ...campo, maxWidth: 220 }} value={config.devolver_apos_minutos ?? ''}
+          onChange={e => muda({ devolver_apos_minutos: e.target.value === '' ? null : Number(e.target.value) })} />
+        <span style={{ display: 'block', fontSize: 13, color: 'var(--muted)', margin: '6px 0 0' }}>De 5 a 1440. Vale só para conversa que o assistente passou para a equipe e ninguém assumiu, e só no modo ao vivo: passado o prazo sem nenhuma mensagem da equipe pelo CRM, ele reassume e responde o cliente que ficou esperando. Quem pediu para parar de receber mensagem e conversa que alguém assumiu nunca voltam sozinhas. Respostas dadas pelo celular o CRM não enxerga. Em branco, o assistente só volta quando a equipe o liga na conversa.</span>
+      </label>
 
       <label>Informações do negócio
         <span style={{ display: 'block', fontSize: 13, color: 'var(--muted)', margin: '2px 0 6px' }}>Endereço, horário de funcionamento, formas de pagamento, avisos. É só o que o assistente pode afirmar sobre o negócio; o que não estiver aqui ele passa para a equipe. Obrigatório para ligar ao vivo.</span>

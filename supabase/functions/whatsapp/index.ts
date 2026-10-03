@@ -336,6 +336,25 @@ function depsDoVigia(): DepsVigia {
         return (v ?? []).map((x) => ({ responsavelId: x.responsavel_id, nome: x.nome, quantidade: Number(x.quantidade) }))
       } catch (e) { if (semFuncao(e)) return null; throw e }
     },
+    async devolverAoAssistente() {
+      // Sem a migração do assistente a função não existe: não é erro, é "nada a devolver".
+      try {
+        const v = await rpc<{ contato_id: string; nome: string | null; whatsapp: string; minutos: number; mensagem_id: string | null; tipo: string | null; texto: string | null }[]>('conversas_devolver_ao_assistente', { p_limite: 3 })
+        return (v ?? []).map((x) => ({
+          contatoId: x.contato_id, nome: x.nome, whatsapp: x.whatsapp, minutos: Number(x.minutos),
+          pendente: x.mensagem_id ? { id: x.mensagem_id, tipo: x.tipo ?? 'texto', texto: x.texto } : null,
+        }))
+      } catch (e) { if (semFuncao(e)) return []; throw e }
+    },
+    async retomarConversas(conversas) {
+      // Pela mesma porta da mensagem recebida: todas as travas do assistente valem (limite, opt-out, equipe).
+      // Uma de cada vez e em segundo plano: cada resposta pode levar um minuto e o vigia não espera por elas.
+      await emSegundoPlano((async () => {
+        for (const c of conversas) {
+          if (c.pendente) await aposReceber({ contatoId: c.contatoId, mensagemId: c.pendente.id, whatsapp: c.whatsapp, tipo: c.pendente.tipo, texto: c.pendente.texto })
+        }
+      })())
+    },
     async removerMidiasVencidas() {
       // Arquivo primeiro, registro depois: se o Storage falhar nada é marcado e a próxima rodada tenta de novo.
       const vencidas = await rpc<{ id: string; midia_url: string }[]>('midias_vencidas', { p_limite: 50 })

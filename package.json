@@ -60,6 +60,8 @@
     "test:assistente": "npx --yes deno@2 test --allow-env supabase/functions/_shared/assistente_test.ts",
     "test:assistente:db:rehearsal": "node scripts/base-migrar.mjs rehearse database/base/0009_modulo_assistente.sql database/base/0009_check.sql",
     "test:assistente:db:apply": "node scripts/base-migrar.mjs apply database/base/0009_modulo_assistente.sql database/base/0009_check.sql --confirm",
+    "test:volta:db:rehearsal": "node scripts/base-migrar.mjs rehearse database/base/0022_volta_ao_assistente.sql database/base/0022_check.sql",
+    "test:volta:db:apply": "node scripts/base-migrar.mjs apply database/base/0022_volta_ao_assistente.sql database/base/0022_check.sql --confirm",
     "test:ui:assistente": "node scripts/browser-check.mjs --assistente",
     "test:campanhas": "npx --yes deno@2 test --allow-env supabase/functions/_shared/campanhas_test.ts supabase/functions/_shared/meta_protocolo_test.ts",
     "test:campanhas:db:rehearsal": "node scripts/base-migrar.mjs rehearse database/base/0010_modulo_campanhas.sql database/base/0010_check.sql",

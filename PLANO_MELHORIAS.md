@@ -34,9 +34,10 @@ Data: 03/10/2026. Referência: repositório público `melgarafael/DeskcommCRM`, 
     pelo WhatsApp sem conversão); (3) mini-conversa flutuante e atalhos de teclado não foram feitos; (4) a mensagem
     "SAIR" pela uazapi com o assistente desligado ainda não revoga o marketing (limite da fase 1).
 
-- **Fase 3 (nenhum lead morre em silêncio): em andamento, começou em 03/10/2026. Nada publicado ainda (alterações no
-  diretório de trabalho, sem commit).** Ordem: tarefas, radar (ambos feitos), volta automática ao assistente e recuperação de falta,
-  lembretes de reunião, follow-up v1 (os dois últimos dependem do canal de envio: decisão pendente 2).
+- **Fase 3 (nenhum lead morre em silêncio): em andamento, começou em 03/10/2026.** Tarefas e radar estão publicados
+  (`89b2484`, `a2ac385`); a volta automática ao assistente está pronta, **ainda sem commit** (alterações no diretório de
+  trabalho). Ordem: tarefas, radar, volta automática (feitos), recuperação de falta, lembretes de reunião e follow-up v1
+  (os três últimos dependem do canal de envio: decisão pendente 2).
   - **Tarefas (0020): feitas.** Tela Tarefas, seção na ficha, tarefa concluída na linha do tempo, aviso "um por pessoa" no
     vigia (`aviso_resolver_exceto`). Ensaiado em PGlite (com troca de regra de propósito para provar que o ensaio falha),
     testes Deno e de tela, instalação gerada só com o núcleo e com todos os módulos. **Nada foi aplicado em Supabase real.**
@@ -45,6 +46,16 @@ Data: 03/10/2026. Referência: repositório público `melgarafael/DeskcommCRM`, 
   - **Radar (0021): feito.** Tela Radar (faixas crítico / em risco / em voo, filtro, "combinar próximo passo" que cria tarefa
     ligada ao negócio), janela de esfriamento por etapa em Configurações → Funil, aviso "um por pessoa" no vigia. A regra é
     uma função do banco (`radar_negocios`). Mesmos ensaios das tarefas, com troca de regra de propósito. Ver `docs/NUCLEO_DO_CRM.md`.
+  - **Volta automática ao assistente (0022): feita.** Prazo opcional (5 a 1440 min) em Assistente; passado o prazo sem
+    nenhum sinal da equipe, a conversa que o assistente encaminhou volta a ele, que responde o cliente que ficou
+    esperando (até 24 h de idade; no máximo 3 conversas por rodada do vigia). Nunca volta: pedido de parar, conversa
+    assumida, desligada à mão ou adiada. A trava "a equipe escreveu há pouco" usa o mesmo prazo (antes, 12 h fixas).
+    Aviso informativo na Central e evento na linha do tempo. Ensaiado em PGlite com três trocas de regra de propósito
+    (todas reprovaram), testes Deno do assistente e do vigia e testes de tela. **Nada foi aplicado em Supabase real.**
+    Ver `docs/MODULO_ASSISTENTE.md`. Limites: (1) respostas dadas pelo celular o CRM não enxerga, então só "Eu cuido"
+    garante que a IA não volta; (2) encaminhamentos anteriores à 0022 não têm motivo registrado e não voltam sozinhos;
+    (3) a volta depende do vigia agendado, como os outros avisos automáticos; (4) o assistente responde a mensagem
+    pendente em segundo plano, então um erro do modelo nessa resposta aparece só no log e em `assistente_respostas`.
   - **Decisão de 03/10:** lembretes de reunião e follow-up serão estruturados para os DOIS canais (uazapi com texto livre e
     Meta com modelo aprovado e janela de 24 h), não só um.
   - Corrigido de passagem: `browser-check` falhava em `--assistente` e `--campanhas` por um teste que ignorava que esses
@@ -178,7 +189,7 @@ Estado na base: **Temos**, **Parcial**, **Não**. Decisão: **Trazer** (novo),
 | Passagem por frase ("quero falar com uma pessoa") antes do modelo, sem gastar IA | `agent/human-handoff.ts` | Não (só pela ferramenta do modelo) | Trazer | P |
 | Resumo da passagem: por quê, o que já foi feito, o que falta | `escalacao/briefing-da-passagem.ts` | Parcial (`ia_resumo`; origem: 0035 com pendências) | Portar | M |
 | A frase da passagem ao cliente é do sistema, não do modelo | `escalacao/aviso-ao-lead.ts` | Temos (despedida) | — | — |
-| Volta automática ao assistente depois de X minutos sem resposta da equipe | `escalacao/devolucao-automatica.ts` | Não (trava fixa de 12 h) | Adaptar | P |
+| Volta automática ao assistente depois de X minutos sem resposta da equipe | `escalacao/devolucao-automatica.ts` | Temos (0022) | — | — |
 | Fila de casos para a equipe, com aviso quando um caso fica parado | `cron/case-stale-watcher`, `escalacao/chamados.ts` | Não (origem: 0035) | Portar | M |
 | Trava de preço: valor citado fora da tabela não sai | `guardrails/promise` | Não | Trazer (tabela = catálogo de serviços) | M |
 | Trava de vocabulário interno: nome de ferramenta, de tabela ou erro cru | `guardrails/vazamento-interno.ts` | Não | Trazer | P |
@@ -272,8 +283,8 @@ adiar conversa, anexos e áudio no compositor, transferir conversa, responsável
 negócio, rascunho da IA, ações em lote, importação de planilha e a tela de modelos da
 Meta (a pendência que falta para fechar o módulo campanhas).
 
-**Fase 3 — Nenhum lead morre em silêncio.** Radar, tarefas, lembretes de reunião
-(portar a 0032), follow-up v1, recuperação de falta e volta automática ao assistente.
+**Fase 3 — Nenhum lead morre em silêncio (EM ANDAMENTO).** Radar, tarefas e volta automática ao assistente (feitos);
+lembretes de reunião (portar a 0032), follow-up v1 e recuperação de falta.
 
 **Fase 4 — De onde vem o cliente.** Captação de formulários com UTM, código `[ref:]`
 para landing page, origem do clique-para-WhatsApp (se as conversas tiverem a Meta) e

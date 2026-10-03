@@ -8,7 +8,8 @@
  *  3. modo `ao_vivo`: só conversas com a IA ligada (`ia_ligada`).
  *  4. nunca ao que não é texto.
  *  5. conversa assumida por alguém da equipe: a IA cala.
- *  6. equipe atendendo: se um humano escreveu pelo CRM nas últimas 12 h, a IA cala.
+ *  6. equipe atendendo: se um humano escreveu pelo CRM nas últimas 12 h, a IA cala. Com a volta automática
+ *     configurada (`devolverAposMinutos`), a janela é esse prazo, para a IA não ficar calada depois de voltar.
  *  7. limite de respostas por conversa.
  *  8. uma resposta por mensagem do cliente (chave primária em `assistente_respostas`) e só a ÚLTIMA mensagem
  *     de uma rajada é respondida.
@@ -28,12 +29,19 @@ export interface ConfigIA {
   modo: 'desligada' | 'teste' | 'ao_vivo'
   nome: string; modelo: string; instrucoes: string | null
   numerosTeste: string[]; maxRespostas: number; esperaSegundos: number
+  /** Minutos sem sinal da equipe para a IA reassumir uma conversa que ela encaminhou; `null` = nunca volta sozinha. */
+  devolverAposMinutos: number | null
 }
 export interface ConversaIA { id: string; iaLigada: boolean; assumida: boolean; respostasDaIA: number }
 export interface EntradaIA {
   mensagemId: string; contatoId: string; telefone: string
   tipo: string; texto: string | null
 }
+/** Há quantas horas uma mensagem da equipe, escrita pelo CRM, ainda cala a IA. */
+export function horasDeSilencio(config: Pick<ConfigIA, 'devolverAposMinutos'>): number {
+  return config.devolverAposMinutos ? config.devolverAposMinutos / 60 : HORAS_DE_SILENCIO
+}
+
 export type Decisao = { responder: true } | { responder: false; motivo: string }
 
 /** Só dígitos; celular antigo (55 + DDD + 8 dígitos) ganha o nono dígito, dos dois lados da comparação. */
@@ -176,7 +184,7 @@ export async function responderComIA(deps: DepsIA, entrada: EntradaIA): Promise<
   // Só a trava "IA ligada nesta conversa" é dispensada; todas as outras continuam valendo.
   const avaliar = async (aposEncaminhar = false) => {
     const atual = (await deps.lerConversa(entrada.contatoId)) ?? conversa
-    return decidir({ config, conversa: aposEncaminhar ? { ...atual, iaLigada: true } : atual, entrada, equipeAtendendo: await deps.equipeAtendendo(entrada.contatoId, HORAS_DE_SILENCIO) })
+    return decidir({ config, conversa: aposEncaminhar ? { ...atual, iaLigada: true } : atual, entrada, equipeAtendendo: await deps.equipeAtendendo(entrada.contatoId, horasDeSilencio(config)) })
   }
 
   const inicial = await avaliar()

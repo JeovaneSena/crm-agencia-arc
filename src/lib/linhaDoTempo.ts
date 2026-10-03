@@ -25,7 +25,7 @@ export interface ReuniaoDoTempo { id: string; assunto: string; data_reuniao: str
 export interface AvisoDoTempo { id: string; titulo: string; detalhe: string | null; criado_em: string; resolvido_em: string | null; resolucao: 'manual' | 'automatica' | null }
 
 export interface NotaDoTempo { id: string; texto: string; created_at: string; autor_nome: string | null }
-export interface EventoDeConversa { id: string; tipo: 'assumiu' | 'transferiu' | 'devolveu'; created_at: string; por_nome: string | null; para_nome: string | null }
+export interface EventoDeConversa { id: string; tipo: 'assumiu' | 'transferiu' | 'devolveu' | 'voltou_ao_assistente'; created_at: string; por_nome: string | null; para_nome: string | null }
 
 /** Só as concluídas contam como história; as abertas ficam na seção Tarefas da ficha. */
 export interface TarefaDoTempo { id: string; titulo: string; concluida_em: string | null; concluida_por_nome: string | null }
@@ -85,7 +85,8 @@ export function montarLinhaDoTempo(e: EntradaDaLinha): EventoDoTempo[] {
   }
   for (const c of e.conversaEventos ?? []) {
     const quem = c.por_nome ?? 'Alguém da equipe'
-    const titulo = c.tipo === 'assumiu' ? `${quem} assumiu a conversa`
+    const titulo = c.tipo === 'voltou_ao_assistente' ? 'O assistente voltou a atender: a equipe não respondeu a tempo'
+      : c.tipo === 'assumiu' ? `${quem} assumiu a conversa`
       : c.tipo === 'devolveu' ? `${quem} devolveu a conversa`
       : c.para_nome && c.para_nome !== quem ? `${quem} passou a conversa para ${c.para_nome}` : `${quem} assumiu a conversa`
     add({ id: `conversa-${c.id}`, quando: c.created_at, tipo: 'conversa', titulo })

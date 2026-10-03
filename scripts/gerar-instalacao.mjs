@@ -23,11 +23,11 @@ const MODULOS = {
   },
   assistente: {
     requer: ['conversas'],
-    migracoes: ['0009_modulo_assistente'],
+    migracoes: ['0009_modulo_assistente', '0022_volta_ao_assistente'],
     funcoes: [],
     // `gancho_assistente.ts` ocupa o lugar do `gancho.ts` vazio do módulo conversas.
     compartilhados: ['llm.ts', 'assistente.ts', 'assistente_prompt.ts', 'assistente_test.ts', ['gancho_assistente.ts', 'gancho.ts']],
-    scripts: ['test:assistente', 'test:assistente:db:rehearsal', 'test:assistente:db:apply', 'test:ui:assistente'],
+    scripts: ['test:assistente', 'test:assistente:db:rehearsal', 'test:assistente:db:apply', 'test:volta:db:rehearsal', 'test:volta:db:apply', 'test:ui:assistente'],
   },
   campanhas: {
     requer: ['conversas'],

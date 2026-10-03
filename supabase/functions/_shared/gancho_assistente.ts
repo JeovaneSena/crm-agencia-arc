@@ -19,12 +19,12 @@ export interface MensagemGravada {
 
 interface LinhaConfig {
   modo: ConfigIA['modo']; nome: string; modelo: string; instrucoes: string | null
-  numeros_teste: string[]; max_respostas: number; espera_segundos: number
+  numeros_teste: string[]; max_respostas: number; espera_segundos: number; devolver_apos_minutos: number | null
 }
 
 async function lerConfig(): Promise<ConfigIA | null> {
-  const c = (await selecionar<LinhaConfig>('assistente_config?select=modo,nome,modelo,instrucoes,numeros_teste,max_respostas,espera_segundos&limit=1'))[0]
-  return c ? { modo: c.modo, nome: c.nome, modelo: c.modelo, instrucoes: c.instrucoes, numerosTeste: c.numeros_teste, maxRespostas: c.max_respostas, esperaSegundos: c.espera_segundos } : null
+  const c = (await selecionar<LinhaConfig>('assistente_config?select=modo,nome,modelo,instrucoes,numeros_teste,max_respostas,espera_segundos,devolver_apos_minutos&limit=1'))[0]
+  return c ? { modo: c.modo, nome: c.nome, modelo: c.modelo, instrucoes: c.instrucoes, numerosTeste: c.numeros_teste, maxRespostas: c.max_respostas, esperaSegundos: c.espera_segundos, devolverAposMinutos: c.devolver_apos_minutos } : null
 }
 
 /** Contato novo nasce com a IA ligada só no modo ao vivo (histórico e quem já falava com a equipe seguem desligados). */
@@ -80,12 +80,12 @@ function depsDoBanco(): DepsIA {
       return h.map((x) => hora.format(new Date(typeof x === 'string' ? x : x.horario)))
     },
     async encaminhar(contatoId, resumo) {
-      await atualizar('contatos_dados', `id=eq.${contatoId}`, { ia_ligada: false, ia_encaminhada_em: new Date().toISOString(), ia_resumo: resumo.slice(0, 500) })
+      await atualizar('contatos_dados', `id=eq.${contatoId}`, { ia_ligada: false, ia_encaminhada_em: new Date().toISOString(), ia_encaminhada_motivo: 'equipe', ia_resumo: resumo.slice(0, 500) })
     },
     async pararDeFalar(contatoId, nivel) {
       const claro = nivel === 'pedido'
       await atualizar('contatos_dados', `id=eq.${contatoId}`, {
-        ia_ligada: false, ia_encaminhada_em: new Date().toISOString(),
+        ia_ligada: false, ia_encaminhada_em: new Date().toISOString(), ia_encaminhada_motivo: 'parar',
         ia_resumo: claro ? 'Pediu para parar de receber mensagens.' : 'Pode ter pedido para parar de receber mensagens.',
       })
       // Revoga o marketing só no pedido claro. Sem o módulo campanhas a função não existe: não é erro.

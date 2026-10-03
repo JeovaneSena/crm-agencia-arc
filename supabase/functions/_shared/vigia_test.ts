@@ -1,5 +1,5 @@
 // O vigia sem banco nem rede: tudo entra por `DepsVigia`.
-import { vigiar, type DepsVigia, type MensagemPresa } from './vigia.ts'
+import { vigiar, type ConversaDevolvida, type DepsVigia, type MensagemPresa } from './vigia.ts'
 import type { Rpc } from './avisos.ts'
 
 function assert(v: unknown, m = 'Assertion failed'): asserts v { if (!v) throw new Error(m) }
@@ -7,11 +7,11 @@ function assert(v: unknown, m = 'Assertion failed'): asserts v { if (!v) throw n
 interface Chamada { nome: string; args: Record<string, unknown> }
 function falso(o: {
   agora?: string; presas?: MensagemPresa[]; leituras?: (string | null)[]; assistente?: { modo: string; desde: string } | null
-  quebrar?: 'mensagens' | 'conexao' | 'assistente' | 'midias' | 'adiadas' | 'tarefas' | 'radar'; midias?: number; adiadas?: { contatoId: string; nome: string | null }[]
+  quebrar?: 'mensagens' | 'conexao' | 'assistente' | 'midias' | 'adiadas' | 'tarefas' | 'radar' | 'devolucao' | 'retomada'; devolvidas?: ConversaDevolvida[]; midias?: number; adiadas?: { contatoId: string; nome: string | null }[]
   radar?: { responsavelId: string | null; nome: string | null; quantidade: number }[] | null
   tarefas?: { responsavelId: string | null; nome: string | null; quantidade: number; maisAntiga: string }[] | null
 } = {}) {
-  const f = { chamadas: [] as Chamada[], marcadas: [] as string[], esperas: [] as number[], antesDe: null as Date | null }
+  const f = { chamadas: [] as Chamada[], marcadas: [] as string[], esperas: [] as number[], antesDe: null as Date | null, retomadas: [] as ConversaDevolvida[][] }
   const leituras = [...(o.leituras ?? ['conectado'])]
   const rpc = (async (nome: string, args: Record<string, unknown>) => { f.chamadas.push({ nome, args }); return nome === 'aviso_resolver_auto' ? 0 : 'id' }) as Rpc
   const deps: DepsVigia = {
@@ -24,6 +24,8 @@ function falso(o: {
     reabrirAdiadas: () => { if (o.quebrar === 'adiadas') return Promise.reject(new Error('banco fora')); return Promise.resolve(o.adiadas ?? []) },
     tarefasVencidas: () => { if (o.quebrar === 'tarefas') return Promise.reject(new Error('banco fora')); return Promise.resolve(o.tarefas === null ? null : (o.tarefas ?? []).map((t) => ({ ...t, maisAntiga: new Date(t.maisAntiga) }))) },
     negociosCriticos: () => { if (o.quebrar === 'radar') return Promise.reject(new Error('banco fora')); return Promise.resolve(o.radar === undefined ? [] : o.radar) },
+    devolverAoAssistente: () => { if (o.quebrar === 'devolucao') return Promise.reject(new Error('banco fora')); return Promise.resolve(o.devolvidas ?? []) },
+    retomarConversas: (c) => { f.retomadas.push(c); if (o.quebrar === 'retomada') return Promise.reject(new Error('modelo fora')); return Promise.resolve() },
     removerMidiasVencidas: () => { if (o.quebrar === 'midias') return Promise.reject(new Error('storage fora')); return Promise.resolve(o.midias ?? 0) },
     assistente: () => { if (o.quebrar === 'assistente') return Promise.reject(new Error('banco fora')); return Promise.resolve(o.assistente ? { modo: o.assistente.modo, desde: new Date(o.assistente.desde) } : null) },
   }
@@ -208,4 +210,43 @@ Deno.test('radar que falha não derruba as outras verificações', async () => {
   const t = falso({ quebrar: 'radar', leituras: ['desconectado', 'desconectado'] })
   const r = await vigiar(t.deps, semFaxina)
   assert(r.erros.join() === 'radar' && r.conexao === 'caida')
+})
+
+const devolvida = (id: string, nome: string | null, minutos: number, pendente = true): ConversaDevolvida =>
+  ({ contatoId: id, nome, whatsapp: '5511999990000', minutos, pendente: pendente ? { id: `m-${id}`, tipo: 'texto', texto: 'Alguém aí?' } : null })
+
+Deno.test('volta ao assistente: um aviso por conversa, com o tempo sem resposta, e só as com cliente esperando são retomadas', async () => {
+  const t = falso({ devolvidas: [devolvida('c1', 'Ana', 35), devolvida('c2', null, 130, false)] })
+  const r = await vigiar(t.deps, semFaxina)
+  assert(r.devolvidasAoAssistente === 2 && r.erros.length === 0)
+  const a = t.abertos().filter((x) => x.p_tipo === 'assistente_reassumiu')
+  assert(a.length === 2 && a.every((x) => x.p_gravidade === 'info'))
+  assert(a[0].p_chave === 'c1' && a[0].p_titulo === 'O assistente voltou a atender Ana' && a[0].p_rota === '/conversas?lead=c1')
+  assert(String(a[0].p_detalhe).includes('35 minutos') && String(a[0].p_detalhe).includes('esperando') && String(a[0].p_detalhe).includes('Eu cuido'), String(a[0].p_detalhe))
+  assert(a[1].p_titulo === 'O assistente voltou a atender uma conversa' && String(a[1].p_detalhe).includes('2 horas') && !String(a[1].p_detalhe).includes('esperando'))
+  assert(t.f.retomadas.length === 1 && t.f.retomadas[0].map((c) => c.contatoId).join() === 'c1', 'só quem tinha cliente esperando é retomado')
+})
+
+Deno.test('volta ao assistente: sem conversa vencida (ou sem prazo, ou sem o módulo) não abre aviso nem retoma', async () => {
+  const t = falso({ devolvidas: [] })
+  const r = await vigiar(t.deps, semFaxina)
+  assert(r.devolvidasAoAssistente === 0 && t.f.retomadas.length === 0 && !t.abertos().some((x) => x.p_tipo === 'assistente_reassumiu'))
+})
+
+Deno.test('volta ao assistente: sem cliente esperando, avisa mas não chama o assistente', async () => {
+  const t = falso({ devolvidas: [devolvida('c1', 'Ana', 60, false)] })
+  const r = await vigiar(t.deps, semFaxina)
+  assert(r.devolvidasAoAssistente === 1 && t.f.retomadas.length === 0 && t.abertos().some((x) => x.p_tipo === 'assistente_reassumiu'))
+})
+
+Deno.test('volta ao assistente: falha ao retomar fica registrada, mas a conversa já devolvida continua contada', async () => {
+  const t = falso({ devolvidas: [devolvida('c1', 'Ana', 40)], quebrar: 'retomada' })
+  const r = await vigiar(t.deps, semFaxina)
+  assert(r.devolvidasAoAssistente === 1 && r.erros.join() === 'devolucoes', `erros: ${r.erros}`)
+})
+
+Deno.test('volta ao assistente: falha ao devolver não derruba as outras verificações', async () => {
+  const t = falso({ quebrar: 'devolucao', presas: [{ id: 'm1', contatoId: 'c1' }] })
+  const r = await vigiar(t.deps, semFaxina)
+  assert(r.erros.join() === 'devolucoes' && r.mensagensPresas === 1)
 })

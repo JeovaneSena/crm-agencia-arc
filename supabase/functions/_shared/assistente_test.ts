@@ -1,11 +1,11 @@
 // Testa a lógica do assistente sem rede nem banco: tudo entra por `DepsIA`.
-import { gerarRascunho, decidir, montarMensagens, normalizarTelefone, prepararResposta, responderComIA, type ConfigIA, type ConversaIA, type DepsIA, type EntradaIA } from './assistente.ts'
+import { gerarRascunho, decidir, horasDeSilencio, montarMensagens, normalizarTelefone, prepararResposta, responderComIA, type ConfigIA, type ConversaIA, type DepsIA, type EntradaIA } from './assistente.ts'
 import { FERRAMENTAS, montarPrompt } from './assistente_prompt.ts'
 import type { PedidoLLM, RespostaLLM } from './llm.ts'
 
 function assert(valor: unknown, mensagem = 'Assertion failed'): asserts valor { if (!valor) throw new Error(mensagem) }
 
-const CONFIG: ConfigIA = { modo: 'ao_vivo', nome: 'Sofia', modelo: 'claude-sonnet-5-5', instrucoes: 'Rua A, 10. Abrimos das 8h às 18h.', numerosTeste: [], maxRespostas: 5, esperaSegundos: 0 }
+const CONFIG: ConfigIA = { modo: 'ao_vivo', nome: 'Sofia', modelo: 'claude-sonnet-5-5', instrucoes: 'Rua A, 10. Abrimos das 8h às 18h.', numerosTeste: [], maxRespostas: 5, esperaSegundos: 0, devolverAposMinutos: null }
 const CONVERSA: ConversaIA = { id: 'c1', iaLigada: true, assumida: false, respostasDaIA: 0 }
 const ENTRADA: EntradaIA = { mensagemId: 'm1', contatoId: 'c1', telefone: '5511988541234', tipo: 'texto', texto: 'Quanto custa?' }
 const ok = (c: Partial<{ config: Partial<ConfigIA>; conversa: Partial<ConversaIA>; entrada: Partial<EntradaIA>; equipe: boolean }> = {}) =>
@@ -63,9 +63,9 @@ Deno.test('prompt e ferramentas: sem travessão; regras de persona e segurança 
 
 // ---------- o caminho completo, com dependências falsas ----------
 
-interface Falso { deps: DepsIA; enviados: string[]; finais: { estado: string; motivo: string | null }[]; pedidos: PedidoLLM[]; encaminhados: string[]; reservas: number; paradas: string[] }
+interface Falso { deps: DepsIA; enviados: string[]; finais: { estado: string; motivo: string | null }[]; pedidos: PedidoLLM[]; encaminhados: string[]; reservas: number; paradas: string[]; janelas: number[] }
 function falso(o: { config?: Partial<ConfigIA>; conversa?: () => Partial<ConversaIA>; respostas?: RespostaLLM[]; equipe?: () => boolean; reservar?: boolean; maisNova?: boolean; falhaEnvio?: boolean; falhaModelo?: boolean; falhaAoParar?: boolean } = {}): Falso {
-  const f: Falso = { deps: null as unknown as DepsIA, enviados: [], finais: [], pedidos: [], encaminhados: [], reservas: 0, paradas: [] }
+  const f: Falso = { deps: null as unknown as DepsIA, enviados: [], finais: [], pedidos: [], encaminhados: [], reservas: 0, paradas: [], janelas: [] }
   const fila = [...(o.respostas ?? [{ texto: 'Os serviços começam a partir de R$ 100.', chamadas: [] }])]
   let conversa: ConversaIA = { ...CONVERSA }
   f.deps = {
@@ -73,7 +73,7 @@ function falso(o: { config?: Partial<ConfigIA>; conversa?: () => Partial<Convers
     esperar: () => Promise.resolve(),
     lerConfig: () => Promise.resolve({ ...CONFIG, ...o.config }),
     lerConversa: () => Promise.resolve({ ...conversa, ...o.conversa?.() }),
-    equipeAtendendo: () => Promise.resolve(o.equipe?.() ?? false),
+    equipeAtendendo: (_c, horas) => { f.janelas.push(horas); return Promise.resolve(o.equipe?.() ?? false) },
     reservar: () => { f.reservas++; return Promise.resolve(o.reservar ?? true) },
     finalizar: (_m, estado, motivo) => { f.finais.push({ estado, motivo }); return Promise.resolve() },
     temMensagemMaisNova: () => Promise.resolve(o.maisNova ?? false),
@@ -129,6 +129,17 @@ Deno.test('equipe respondeu pelo CRM nas últimas horas: a IA cala', async () =>
   const f = falso({ equipe: () => true })
   const r = await responderComIA(f.deps, ENTRADA)
   assert(r.estado === 'ignorada' && f.reservas === 0 && f.enviados.length === 0)
+})
+
+Deno.test('volta automática: o prazo configurado é a janela em que a fala da equipe cala a IA', async () => {
+  assert(horasDeSilencio({ devolverAposMinutos: null }) === 12, 'sem prazo, continuam as 12 h de sempre')
+  assert(horasDeSilencio({ devolverAposMinutos: 30 }) === 0.5 && horasDeSilencio({ devolverAposMinutos: 1440 }) === 24)
+  const sem = falso()
+  await responderComIA(sem.deps, ENTRADA)
+  assert(sem.janelas.length >= 3 && sem.janelas.every(h => h === 12), `janelas sem prazo: ${sem.janelas}`)
+  const com = falso({ config: { devolverAposMinutos: 45 } })
+  await responderComIA(com.deps, ENTRADA)
+  assert(com.janelas.length >= 3 && com.janelas.every(h => h === 0.75), `janelas com prazo de 45 min: ${com.janelas}`)
 })
 
 Deno.test('ferramentas: serviços e horários usam a duração do serviço; o resultado volta ao modelo', async () => {

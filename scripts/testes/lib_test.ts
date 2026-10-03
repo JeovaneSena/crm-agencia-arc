@@ -179,13 +179,14 @@ Deno.test('linha do tempo: junta etapas, reuniões, avisos, notas e passagens, d
       { id: 'v1', tipo: 'assumiu', created_at: '2026-10-02T11:00:00Z', por_nome: 'Ana', para_nome: 'Ana' },
       { id: 'v2', tipo: 'transferiu', created_at: '2026-10-02T11:30:00Z', por_nome: 'Ana', para_nome: 'Beto' },
       { id: 'v3', tipo: 'devolveu', created_at: '2026-10-02T11:40:00Z', por_nome: null, para_nome: null },
+      { id: 'v4', tipo: 'voltou_ao_assistente', created_at: '2026-10-02T11:50:00Z', por_nome: null, para_nome: null },
     ],
     tarefas: [{ id: 't1', titulo: 'Ligar para confirmar', concluida_em: '2026-10-03T15:00:00Z', concluida_por_nome: 'Ana' }, { id: 't2', titulo: 'Ainda aberta', concluida_em: null, concluida_por_nome: null }, { id: 't3', titulo: 'Sem autor', concluida_em: '2026-10-01T10:00:00Z', concluida_por_nome: null }],
     ultimaMensagem: 'data inválida',
   })
   eq(r.map((x) => x.titulo), [
     'Tarefa concluída: Ligar para confirmar', 'Aviso dispensado: Pediu para parar', 'Aviso: Pediu para parar', 'Reunião cancelada: Diagnóstico',
-    'Nota interna', 'Nota interna de Ana', 'Alguém da equipe devolveu a conversa', 'Ana passou a conversa para Beto', 'Ana assumiu a conversa',
+    'Nota interna', 'Nota interna de Ana', 'O assistente voltou a atender: a equipe não respondeu a tempo', 'Alguém da equipe devolveu a conversa', 'Ana passou a conversa para Beto', 'Ana assumiu a conversa',
     'Site: Novo lead → Proposta', 'Reunião marcada: Diagnóstico', 'Tarefa concluída: Sem autor', 'Site: aberta em Novo lead', 'Contato criado',
   ])
   eq(r.find((x) => x.id === 'tarefa-t1')?.detalhe, 'Por Ana'); eq(r.find((x) => x.id === 'tarefa-t3')?.detalhe, undefined); assert(!r.some((x) => x.id === 'tarefa-t2'), 'tarefa aberta não é história')

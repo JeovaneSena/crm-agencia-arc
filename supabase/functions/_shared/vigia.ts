@@ -15,7 +15,9 @@
  *   6. tarefas vencidas: um aviso por pessoa ("Ana tem 3 tarefas vencidas"), que se fecha quando ela zera as vencidas.
  *   7. radar: um aviso por pessoa com negócios críticos ("Ana tem 2 negócios críticos sem próximo passo"), fechado
  *      quando ela não tem mais nenhum.
- *   8. faxina dos avisos antigos, uma vez por hora.
+ *   8. conversa que o assistente encaminhou e a equipe não atendeu dentro do prazo do gestor: volta ao assistente
+ *      (só com o prazo definido), e o assistente responde o que o cliente deixou sem resposta. A equipe é avisada.
+ *   9. faxina dos avisos antigos, uma vez por hora.
  *
  * Só lógica: banco, WhatsApp e relógio entram por `DepsVigia`. Cada verificação é isolada:
  * uma que falha não impede as outras, e o resultado diz quais falharam.
@@ -53,6 +55,18 @@ export interface DepsVigia {
   tarefasVencidas(): Promise<TarefasVencidas[] | null>
   /** Quantos negócios críticos no radar cada pessoa tem (`responsavelId` nulo = sem responsável), ou `null` se esta instalação ainda não tem o radar. */
   negociosCriticos(): Promise<NegociosCriticos[] | null>
+  /** Devolve ao assistente as conversas encaminhadas que passaram do prazo sem sinal da equipe. Lista vazia se o prazo não foi definido ou se esta instalação não tem o assistente. */
+  devolverAoAssistente(): Promise<ConversaDevolvida[]>
+  /** Faz o assistente responder o que o cliente deixou sem resposta. Não pode demorar a rodada do vigia: o trabalho segue em segundo plano. */
+  retomarConversas(conversas: ConversaDevolvida[]): Promise<void>
+}
+
+export interface ConversaDevolvida {
+  contatoId: string; nome: string | null; whatsapp: string
+  /** Minutos sem nenhum sinal da equipe quando a conversa voltou. */
+  minutos: number
+  /** A mensagem do cliente que ficou sem resposta (a última da conversa, texto, de até 24 h), se houver. */
+  pendente: { id: string; tipo: string; texto: string | null } | null
 }
 
 export interface NegociosCriticos { responsavelId: string | null; nome: string | null; quantidade: number }
@@ -66,6 +80,7 @@ export interface ResultadoDoVigia {
   adiadasQueVoltaram: number
   tarefasVencidas: number
   negociosCriticos: number
+  devolvidasAoAssistente: number
   midiasRemovidas: number
   avisosApagados: number
   erros: string[]
@@ -159,6 +174,29 @@ async function vigiarRadar(deps: DepsVigia): Promise<number> {
   return grupos.reduce((soma, g) => soma + g.quantidade, 0)
 }
 
+function tempoSemSinal(minutos: number): string {
+  if (minutos < 60) return `${minutos} minuto${minutos === 1 ? '' : 's'}`
+  const h = Math.floor(minutos / 60)
+  return `${h} hora${h === 1 ? '' : 's'}`
+}
+
+async function vigiarDevolucoes(deps: DepsVigia, r: ResultadoDoVigia): Promise<void> {
+  const voltaram = await deps.devolverAoAssistente()
+  if (!voltaram.length) return
+  // Já voltaram no banco: a contagem vale mesmo que o aviso ou a resposta falhem logo abaixo.
+  r.devolvidasAoAssistente = voltaram.length
+  for (const c of voltaram) {
+    const nome = c.nome?.trim()
+    await abrirAviso(deps.rpc, {
+      tipo: 'assistente_reassumiu', chave: c.contatoId, gravidade: 'info', contatoId: c.contatoId, rota: `/conversas?lead=${c.contatoId}`,
+      titulo: nome ? `O assistente voltou a atender ${nome}` : 'O assistente voltou a atender uma conversa',
+      detalhe: `Ninguém da equipe respondeu em ${tempoSemSinal(c.minutos)}${c.pendente ? ', e o cliente estava esperando' : ''}. Para ficar com a conversa, clique em "Eu cuido".`,
+    })
+  }
+  const comPendente = voltaram.filter((c) => c.pendente)
+  if (comPendente.length) await deps.retomarConversas(comPendente)
+}
+
 async function vigiarAssistente(deps: DepsVigia): Promise<boolean> {
   const a = await deps.assistente()
   if (!a || a.modo !== 'teste') { if (a) await resolverAviso(deps.rpc, 'assistente_em_teste'); return false }
@@ -173,7 +211,7 @@ async function vigiarAssistente(deps: DepsVigia): Promise<boolean> {
 }
 
 export async function vigiar(deps: DepsVigia, expurgarAvisos: () => Promise<number>): Promise<ResultadoDoVigia> {
-  const r: ResultadoDoVigia = { mensagensPresas: 0, conexao: 'nao_vigiada', assistenteEmTeste: false, adiadasQueVoltaram: 0, tarefasVencidas: 0, negociosCriticos: 0, midiasRemovidas: 0, avisosApagados: 0, erros: [] }
+  const r: ResultadoDoVigia = { mensagensPresas: 0, conexao: 'nao_vigiada', assistenteEmTeste: false, adiadasQueVoltaram: 0, tarefasVencidas: 0, negociosCriticos: 0, devolvidasAoAssistente: 0, midiasRemovidas: 0, avisosApagados: 0, erros: [] }
   const passo = async (nome: string, f: () => Promise<void>) => {
     try { await f() } catch (e) { r.erros.push(nome); console.error(`vigia: ${nome}:`, e instanceof Error ? e.message.slice(0, 160) : 'erro') }
   }
@@ -183,6 +221,7 @@ export async function vigiar(deps: DepsVigia, expurgarAvisos: () => Promise<numb
   await passo('adiadas', async () => { r.adiadasQueVoltaram = await vigiarAdiadas(deps) })
   await passo('tarefas', async () => { r.tarefasVencidas = await vigiarTarefas(deps) })
   await passo('radar', async () => { r.negociosCriticos = await vigiarRadar(deps) })
+  await passo('devolucoes', async () => { await vigiarDevolucoes(deps, r) })
   await passo('midias', async () => { r.midiasRemovidas = await deps.removerMidiasVencidas() })
   // A faxina custa uma consulta e não precisa de pressa: uma vez por hora, nos primeiros 5 minutos.
   if (deps.agora().getUTCMinutes() < 5) await passo('faxina', async () => { r.avisosApagados = await expurgarAvisos() })
