@@ -15,11 +15,11 @@ const base = resolve(import.meta.dirname, '..')
 // Módulos que já existem na base.
 const MODULOS = {
   conversas: {
-    migracoes: ['0007_modulo_conversas', '0012_retencao_de_midia'],
+    migracoes: ['0007_modulo_conversas', '0012_retencao_de_midia', '0013_respostas_rapidas'],
     funcoes: ['whatsapp'],
     compartilhados: ['uazapi.ts', 'whatsapp.ts', 'gancho.ts', 'sessao.ts', 'conversas_test.ts', 'optout.ts', 'optout_test.ts', 'vigia.ts', 'vigia_test.ts'],
     arquivos: ['scripts/vigia-worker.mjs'],
-    scripts: ['test:conversas', 'test:optout', 'test:vigia', 'test:conversas:db:rehearsal', 'test:conversas:db:apply', 'test:retencao:db:rehearsal', 'test:retencao:db:apply', 'test:ui:conversas'],
+    scripts: ['test:conversas', 'test:optout', 'test:vigia', 'test:conversas:db:rehearsal', 'test:conversas:db:apply', 'test:retencao:db:rehearsal', 'test:retencao:db:apply', 'test:respostas:db:rehearsal', 'test:respostas:db:apply', 'test:ui:conversas'],
   },
   assistente: {
     requer: ['conversas'],
@@ -50,8 +50,8 @@ const NUCLEO = {
   compartilhados: ['db.ts', 'equipe-nucleo.ts', 'equipe_nucleo_test.ts', 'avisos.ts', 'avisos_test.ts'],
   arquivos: ['index.html', 'eslint.config.js', 'tsconfig.json', 'tsconfig.app.json', 'tsconfig.node.json', 'vite.config.ts', 'vercel.json', 'package-lock.json', '.gitignore'],
   pastas: ['src', 'public', 'supabase/email-templates'],
-  scripts: ['scripts/base-database.mjs', 'scripts/base-migrar.mjs', 'scripts/preflight-base.mjs', 'scripts/browser-check.mjs', 'scripts/auth-config.mjs', 'scripts/ensaio-local.mjs', 'scripts/lib/proibidos.mjs', 'scripts/lib/supabase-stub.sql'],
-  npm: ['dev', 'build', 'lint', 'preview', 'preflight', 'test:db:local', 'test:avisos', 'auth:config', 'auth:aplicar', 'test:ui',
+  scripts: ['scripts/base-database.mjs', 'scripts/base-migrar.mjs', 'scripts/preflight-base.mjs', 'scripts/browser-check.mjs', 'scripts/auth-config.mjs', 'scripts/ensaio-local.mjs', 'scripts/lib/proibidos.mjs', 'scripts/lib/supabase-stub.sql', 'scripts/testes/lib_test.ts'],
+  npm: ['dev', 'build', 'lint', 'preview', 'preflight', 'test:db:local', 'test:lib', 'test:avisos', 'auth:config', 'auth:aplicar', 'test:ui',
     ...['base', 'nucleo', 'contatos', 'dashboard', 'funcoes', 'storage', 'avisos'].flatMap(n => n === 'base'
       ? ['test:base:db:rehearsal', 'test:base:db:apply', 'test:base:db:verify']
       : [`test:${n}:db:rehearsal`, `test:${n}:db:apply`])],
