@@ -3,7 +3,7 @@ import OportunidadeReuniao from '../components/OportunidadeReuniao'
 import Oportunidades from '../components/Oportunidades'
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Phone, Clock, Save, Plus, X, CalendarDays, ClipboardList, MessagesSquare } from 'lucide-react'
+import { ArrowLeft, Phone, Clock, Save, Plus, X, CalendarDays, ClipboardList, MessagesSquare, History } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { isCliente } from '../lib/pessoas'
 import { formatarParaExibicao } from '../lib/telefones'
@@ -16,6 +16,7 @@ import { motivoForaDaJornada } from '../lib/agenda'
 import CampoTelefone from '../components/CampoTelefone'
 import ApagarEstaPessoa from '../components/ApagarEstaPessoa'
 import ConsentimentoMarketing from '../components/ConsentimentoMarketing'
+import LinhaDoTempo from '../components/LinhaDoTempo'
 import type { Contato, Consulta, ReuniaoStatus, Profissional, ProfissionalHorario } from '../types'
 
 /* ──────────────────────────────────────────────
@@ -554,6 +555,13 @@ export default function LeadDetail() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Linha do tempo: etapas, reuniões e avisos do contato, numa ordem só. */}
+      <div className="fade-in-2">
+        <SectionCard title="Linha do tempo" icon={History}>
+          <LinhaDoTempo contato={{ id: lead.id, created_at: lead.created_at }} reunioes={consultas} ultimaMensagem={moduloAtivo('conversas') ? lead.ultima_mensagem : null} rotuloEtapa={funil.rotulo} />
+        </SectionCard>
       </div>
 
       {/* Visão Completa do Contato */}

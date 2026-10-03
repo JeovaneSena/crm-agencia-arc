@@ -41,7 +41,7 @@ const destinatarios = [
  {id:'d3',contato_id:'c3',whatsapp:'5511977777777',nome:'Pedro',valores:{},apto:false,motivo_exclusao:'pediu_para_parar',estado:'excluido',erro:null,tentativas:0}]
 let consentimentoRegistrado=false
 let retencao=null
-let avisos=[{id:'av1',tipo:'conexao_caida',gravidade:'critico',titulo:'WhatsApp desconectado',detalhe:'Reconecte o número para voltar a receber mensagens.',rota:'/configuracoes',contato_id:null,somente_gestor:true,ocorrencias:3,criado_em:new Date().toISOString(),ultima_em:new Date().toISOString(),resolvido_em:null,resolucao:null},{id:'av2',tipo:'mensagem_presa',gravidade:'atencao',titulo:'Uma mensagem não saiu',detalhe:null,rota:'https://externo.example/phishing',contato_id:null,somente_gestor:false,ocorrencias:1,criado_em:new Date().toISOString(),ultima_em:new Date().toISOString(),resolvido_em:null,resolucao:null}]
+let avisos=[{id:'av1',tipo:'conexao_caida',gravidade:'critico',titulo:'WhatsApp desconectado',detalhe:'Reconecte o número para voltar a receber mensagens.',rota:'/configuracoes',contato_id:null,somente_gestor:true,ocorrencias:3,criado_em:new Date().toISOString(),ultima_em:new Date().toISOString(),resolvido_em:null,resolucao:null},{id:'av2',tipo:'mensagem_presa',gravidade:'atencao',titulo:'Uma mensagem não saiu',detalhe:null,rota:'https://externo.example/phishing',contato_id:'00000000-0000-4000-8000-000000000002',somente_gestor:false,ocorrencias:1,criado_em:new Date().toISOString(),ultima_em:new Date().toISOString(),resolvido_em:null,resolucao:null}]
 const browser = await chromium.launch({headless:true,args:['--no-sandbox']})
 const context = await browser.newContext({viewport:{width:1440,height:1000}})
 const errors=[]
@@ -61,7 +61,7 @@ const tabelas = {
  conversas_config:()=>[{id:true,provedor:'uazapi',retencao_midia_dias:retencao}],
  conversas_lista:()=>[{contato_id:lead.id,nome:lead.nome,whatsapp:lead.whatsapp,status:'novo_lead',assumida:false,assumido_por:null,assumido_em:null,assumido_por_nome:null,ultimo_conteudo:'Quero saber mais',ultimo_tipo:'texto',ultimo_autor:'cliente',ultima_em:now,nao_lidas:1,proxima_reuniao:null,...(comAssistente?{ia_ligada:false,ia_encaminhada_em:now,ia_resumo:'Quer fechar a proposta hoje'}:{})}],
  mensagens_whatsapp:()=>[{id:'m1',contato_id:lead.id,autor:'cliente',tipo:'texto',conteudo:'Quero saber mais',midia_url:null,id_externo:'e1',provedor:'uazapi',lida:false,criada_em:now},{id:'m2',contato_id:lead.id,autor:'atendente',tipo:'texto',conteudo:'Claro, como posso ajudar?',midia_url:null,id_externo:'e2',provedor:'uazapi',estado_envio:'enviado',lida:true,criada_em:now},{id:'m3',contato_id:lead.id,autor:'cliente',tipo:'imagem',conteudo:null,midia_url:null,midia_removida_em:now,id_externo:'e3',provedor:'uazapi',lida:true,criada_em:now}],
- profissional_bloqueios:()=>[], oportunidade_eventos:()=>[], contatos_dados:()=>[],
+ profissional_bloqueios:()=>[], oportunidade_eventos:()=>[{id:'ev1',status_anterior:'qualificacao',status_novo:'proposta',motivo:'Pediu orçamento',created_at:now,oportunidades:{nome:'Venda inicial',contato_id:lead.id}},{id:'ev2',status_anterior:null,status_novo:'novo_lead',motivo:null,created_at:now,oportunidades:{nome:'Negócio de OUTRA pessoa',contato_id:'outro-contato'}}], contatos_dados:()=>[],
  usuarios:()=>[{...user,nome:'Equipe Teste',papel,ativo:true,avatar_url:null,profissional_id:null,convidado_em:null,ultimo_acesso_em:null}],
  configuracoes_negocio:()=>[{id:'config',nome_negocio:'Empresa Teste',logo_url:null,fuso_horario:'America/Sao_Paulo'}],
  resumo_periodo:()=>[{novos_contatos:1,reunioes_agendadas:1,vendas_ganhas:1,conversao:100,valor_fechado:1250,em_negociacao:0}],
@@ -119,6 +119,16 @@ try {
  assert.equal(dispensado?.p_id,'av1','dispensar não chamou aviso_dispensar com o id')
  assert.equal(await page.getByRole('heading',{name:'WhatsApp desconectado'}).count(),0,'aviso dispensado continuou na lista')
  console.log('PASS avisos: contador, ordem, rota segura e dispensar')
+ // Linha do tempo do contato: junta etapa, reunião e aviso do contato; nunca mostra o evento de outra pessoa.
+ await page.goto(base+`/leads/${lead.id}`)
+ await page.getByRole('list',{name:'Linha do tempo do contato'}).waitFor()
+ const tempo=await page.getByRole('list',{name:'Linha do tempo do contato'}).innerText()
+ assert(tempo.includes('Contato criado'),'linha do tempo sem a criação do contato')
+ assert(/Venda inicial: .+ → .+/.test(tempo)&&tempo.includes('Pediu orçamento'),'linha do tempo sem a mudança de etapa e o motivo')
+ assert(tempo.includes('Reunião marcada: Reunião inicial'),'linha do tempo sem a reunião')
+ assert(tempo.includes('Aviso: Uma mensagem não saiu'),'linha do tempo sem o aviso do contato')
+ assert(!tempo.includes('OUTRA pessoa'),'a linha do tempo mostrou evento de outro contato')
+ console.log('PASS linha do tempo do contato')
  await page.goto(base+'/')
  const desligados=[...(comCampanhas?[]:['Campanhas']),...(comAssistente?[]:['Assistente comercial de IA']),...(comProjetos?[]:['Projetos']),...((comConversas||comAssistente||comCampanhas)?[]:['Conversas'])]
  for(const modulo of desligados)
