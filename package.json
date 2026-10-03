@@ -37,6 +37,8 @@
     "test:retencao:db:apply": "node scripts/base-migrar.mjs apply database/base/0012_retencao_de_midia.sql database/base/0012_check.sql --confirm",
     "test:respostas:db:rehearsal": "node scripts/base-migrar.mjs rehearse database/base/0013_respostas_rapidas.sql database/base/0013_check.sql",
     "test:respostas:db:apply": "node scripts/base-migrar.mjs apply database/base/0013_respostas_rapidas.sql database/base/0013_check.sql --confirm",
+    "test:notas:db:rehearsal": "node scripts/base-migrar.mjs rehearse database/base/0014_notas_internas.sql database/base/0014_check.sql",
+    "test:notas:db:apply": "node scripts/base-migrar.mjs apply database/base/0014_notas_internas.sql database/base/0014_check.sql --confirm",
     "test:projetos:db:rehearsal": "node scripts/base-migrar.mjs rehearse database/base/0008_modulo_projetos.sql database/base/0008_check.sql",
     "test:projetos:db:apply": "node scripts/base-migrar.mjs apply database/base/0008_modulo_projetos.sql database/base/0008_check.sql --confirm",
     "test:ui:projetos": "node scripts/browser-check.mjs --projetos",

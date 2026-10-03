@@ -48,3 +48,14 @@ Deno.test('respostas rápidas: /atalho expande já preenchido; pessoal vence a d
   eq(expandirAtalho('oi', lista, { nome: 'Ana' }), null)
 })
 
+// ---------- notas internas ----------
+import { mesclarConversa, type NotaConversa } from '../../src/lib/conversaMesclada.ts'
+Deno.test('notas: entram na conversa na ordem do tempo, depois da mensagem do mesmo instante', () => {
+  const msgs = [{ id: 'm1', criada_em: '2026-10-03T10:00:00Z' }, { id: 'm2', criada_em: '2026-10-03T10:05:00Z' }]
+  const nota = (id: string, created_at: string): NotaConversa => ({ id, contato_id: 'c', texto: 't', autor_id: null, created_at, autor: null })
+  const lista = mesclarConversa(msgs, [nota('n2', '2026-10-03T10:05:00Z'), nota('n1', '2026-10-03T10:02:00Z')])
+  eq(lista.map((i) => (i.tipo === 'mensagem' ? i.mensagem.id : i.nota.id)), ['m1', 'n1', 'm2', 'n2'])
+  eq(mesclarConversa(msgs, []).length, 2)
+  eq(mesclarConversa([], []), [])
+})
+
