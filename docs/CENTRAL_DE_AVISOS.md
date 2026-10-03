@@ -21,8 +21,10 @@ parar. Regra de ouro: nenhum trabalhador termina num `return` mudo.
 | `mensagem_presa` | vigia | a equipe dispensa |
 | `conexao_caida` | vigia | a conexão volta |
 | `assistente_em_teste` | vigia | o modo deixa de ser teste |
+| `tarefas_vencidas` | vigia (um por pessoa; `sem_responsavel` para as sem dono) | a pessoa zera as vencidas, ou a equipe dispensa |
 | `pediu_para_parar` | assistente | a equipe dispensa |
 
 Para um aviso novo: escolha o `tipo` (minúsculas e `_`), a `chave` que distingue um problema do outro
 (um contato, um número) e chame `abrirAviso`. Se a causa pode sumir sozinha, chame `resolverAviso`
-quando ela sumir.
+quando ela sumir. Quando o aviso é "um por pessoa" e o vigia olha todas de uma vez, abra os de quem tem o
+problema e chame `resolverAvisosExceto(tipo, chaves)` (migração 0020): fecha o aviso de quem não está mais na lista.

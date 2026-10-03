@@ -14,7 +14,7 @@
  *   POST /apagar-pessoa          só gestor: mídias do Storage + contato (o resto cai em cascata)
  *   POST /rascunho               equipe pede um rascunho de resposta da IA (só com o módulo assistente); NÃO envia nada
  *   POST /vigiar                 o vigia (Authorization: Bearer VIGIA_SEGREDO), a cada 5 min: mensagem presa,
- *                                conexão caída, assistente esquecido em teste; abre e fecha avisos na Central
+ *                                conexão caída, assistente esquecido em teste, tarefas vencidas; abre e fecha avisos na Central
  *
  * Escreve em `mensagens_whatsapp` com a service_role; a equipe só lê.
  */
@@ -294,6 +294,9 @@ async function rotaApagarPessoa(req: Request): Promise<Response> {
 /** Tabela que não existe (módulo não instalado) não é erro: é "nada a vigiar". */
 const semTabela = (e: unknown) => e instanceof Error && /PGRST205|42P01|does not exist/i.test(e.message)
 
+/** Função que não existe (migração ainda não aplicada) também é "nada a vigiar". */
+const semFuncao = (e: unknown) => e instanceof Error && /PGRST202|42883|Could not find the function/i.test(e.message)
+
 function depsDoVigia(): DepsVigia {
   return {
     agora: () => new Date(),
@@ -320,6 +323,12 @@ function depsDoVigia(): DepsVigia {
     async reabrirAdiadas() {
       const v = await rpc<{ contato_id: string; nome: string | null }[]>('conversas_adiadas_vencidas', {})
       return (v ?? []).map((x) => ({ contatoId: x.contato_id, nome: x.nome }))
+    },
+    async tarefasVencidas() {
+      try {
+        const v = await rpc<{ responsavel_id: string | null; nome: string | null; quantidade: number; mais_antiga: string }[]>('tarefas_vencidas_por_responsavel', {})
+        return (v ?? []).map((x) => ({ responsavelId: x.responsavel_id, nome: x.nome, quantidade: Number(x.quantidade), maisAntiga: new Date(x.mais_antiga) }))
+      } catch (e) { if (semFuncao(e)) return null; throw e }
     },
     async removerMidiasVencidas() {
       // Arquivo primeiro, registro depois: se o Storage falhar nada é marcado e a próxima rodada tenta de novo.

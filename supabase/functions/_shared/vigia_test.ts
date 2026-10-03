@@ -7,7 +7,8 @@ function assert(v: unknown, m = 'Assertion failed'): asserts v { if (!v) throw n
 interface Chamada { nome: string; args: Record<string, unknown> }
 function falso(o: {
   agora?: string; presas?: MensagemPresa[]; leituras?: (string | null)[]; assistente?: { modo: string; desde: string } | null
-  quebrar?: 'mensagens' | 'conexao' | 'assistente' | 'midias' | 'adiadas'; midias?: number; adiadas?: { contatoId: string; nome: string | null }[]
+  quebrar?: 'mensagens' | 'conexao' | 'assistente' | 'midias' | 'adiadas' | 'tarefas'; midias?: number; adiadas?: { contatoId: string; nome: string | null }[]
+  tarefas?: { responsavelId: string | null; nome: string | null; quantidade: number; maisAntiga: string }[] | null
 } = {}) {
   const f = { chamadas: [] as Chamada[], marcadas: [] as string[], esperas: [] as number[], antesDe: null as Date | null }
   const leituras = [...(o.leituras ?? ['conectado'])]
@@ -20,12 +21,14 @@ function falso(o: {
     marcarIncertas: (ids) => { f.marcadas.push(...ids); return Promise.resolve() },
     estadoDaConexao: () => { if (o.quebrar === 'conexao') return Promise.reject(new Error('uazapi fora')); return Promise.resolve(leituras.length > 1 ? leituras.shift()! : leituras[0]) },
     reabrirAdiadas: () => { if (o.quebrar === 'adiadas') return Promise.reject(new Error('banco fora')); return Promise.resolve(o.adiadas ?? []) },
+    tarefasVencidas: () => { if (o.quebrar === 'tarefas') return Promise.reject(new Error('banco fora')); return Promise.resolve(o.tarefas === null ? null : (o.tarefas ?? []).map((t) => ({ ...t, maisAntiga: new Date(t.maisAntiga) }))) },
     removerMidiasVencidas: () => { if (o.quebrar === 'midias') return Promise.reject(new Error('storage fora')); return Promise.resolve(o.midias ?? 0) },
     assistente: () => { if (o.quebrar === 'assistente') return Promise.reject(new Error('banco fora')); return Promise.resolve(o.assistente ? { modo: o.assistente.modo, desde: new Date(o.assistente.desde) } : null) },
   }
   const abertos = () => f.chamadas.filter((c) => c.nome === 'aviso_abrir').map((c) => c.args)
+  const exceto = (tipo = 'tarefas_vencidas') => f.chamadas.filter((c) => c.nome === 'aviso_resolver_exceto' && c.args.p_tipo === tipo).map((c) => c.args)
   const fechados = () => f.chamadas.filter((c) => c.nome === 'aviso_resolver_auto').map((c) => c.args.p_tipo)
-  return { f, deps, abertos, fechados }
+  return { f, deps, abertos, fechados, exceto }
 }
 const semFaxina = () => Promise.resolve(0)
 
@@ -138,4 +141,40 @@ Deno.test('adiadas que falham não derrubam as outras verificações', async () 
   const t = falso({ quebrar: 'adiadas', leituras: ['desconectado', 'desconectado'] })
   const r = await vigiar(t.deps, semFaxina)
   assert(r.erros.join() === 'adiadas' && r.conexao === 'caida')
+})
+
+Deno.test('tarefas vencidas: um aviso por pessoa, com a data da mais antiga, e fecha quem não tem mais', async () => {
+  const t = falso({ tarefas: [
+    { responsavelId: 'u1', nome: ' Ana ', quantidade: 3, maisAntiga: '2026-09-30T12:00:00Z' },
+    { responsavelId: 'u2', nome: 'Bruno', quantidade: 1, maisAntiga: '2026-10-03T10:00:00Z' },
+    { responsavelId: null, nome: null, quantidade: 2, maisAntiga: '2026-10-02T09:00:00Z' },
+  ] })
+  const r = await vigiar(t.deps, semFaxina)
+  assert(r.tarefasVencidas === 6)
+  const a = t.abertos().filter((x) => x.p_tipo === 'tarefas_vencidas')
+  assert(a.length === 3 && a.every((x) => x.p_rota === '/tarefas' && x.p_gravidade === 'atencao'))
+  assert(a[0].p_chave === 'u1' && a[0].p_titulo === 'Ana tem 3 tarefas vencidas' && String(a[0].p_detalhe).startsWith('A mais antiga venceu há 3 dias'))
+  assert(a[1].p_titulo === 'Bruno tem 1 tarefa vencida' && String(a[1].p_detalhe).startsWith('A mais antiga venceu hoje'))
+  assert(a[2].p_chave === 'sem_responsavel' && a[2].p_titulo === '2 tarefas vencidas estão sem responsável' && String(a[2].p_detalhe).startsWith('A mais antiga venceu ontem'))
+  const e = t.exceto()
+  assert(e.length === 1 && e[0].p_tipo === 'tarefas_vencidas' && JSON.stringify(e[0].p_chaves) === JSON.stringify(['u1', 'u2', 'sem_responsavel']))
+})
+
+Deno.test('tarefas vencidas: ninguém atrasado fecha todos os avisos do tipo', async () => {
+  const t = falso({ tarefas: [] })
+  const r = await vigiar(t.deps, semFaxina)
+  const e = t.exceto()
+  assert(r.tarefasVencidas === 0 && t.abertos().length === 0 && e.length === 1 && JSON.stringify(e[0].p_chaves) === '[]')
+})
+
+Deno.test('tarefas vencidas: instalação sem tarefas não abre nem fecha nada', async () => {
+  const t = falso({ tarefas: null })
+  const r = await vigiar(t.deps, semFaxina)
+  assert(r.tarefasVencidas === 0 && t.abertos().length === 0 && t.exceto().length === 0)
+})
+
+Deno.test('tarefas que falham não derrubam as outras verificações', async () => {
+  const t = falso({ quebrar: 'tarefas', leituras: ['desconectado', 'desconectado'] })
+  const r = await vigiar(t.deps, semFaxina)
+  assert(r.erros.join() === 'tarefas' && r.conexao === 'caida' && t.exceto().length === 0)
 })

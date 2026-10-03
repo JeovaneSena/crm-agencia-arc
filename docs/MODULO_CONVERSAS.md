@@ -64,6 +64,8 @@ sozinho e abre ou fecha avisos na Central (`/avisos`, migração 0011):
   abre o aviso (crítico). Com a Meta oficial como provedor, nada a vigiar.
 - **assistente esquecido em modo de teste** há 3+ dias (só o gestor vê). Sem o módulo assistente, ignorado.
 - **conversa adiada** cuja hora chegou: volta para a fila e abre um aviso.
+- **tarefas vencidas** (migração 0020, ver `NUCLEO_DO_CRM.md`): um aviso por pessoa, "Ana tem 3 tarefas vencidas", fechado
+  quando ela zera as vencidas. Sem a migração 0020 aplicada, ignorado.
 - **retenção de mídia**: se o gestor definiu um prazo, apaga os arquivos vencidos (ver acima).
 - a cada hora, apaga avisos resolvidos há mais de 90 dias.
 

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import { NavLink, Link, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, KanbanSquare, MessagesSquare, ClipboardList, Bot, CalendarDays, BriefcaseBusiness, FolderKanban, Users, UserCheck, UsersRound, Settings, ChevronLeft, ChevronRight, ChevronUp, LogOut, Megaphone, Bell } from 'lucide-react'
+import { LayoutDashboard, KanbanSquare, MessagesSquare, ClipboardList, ListChecks, Bot, CalendarDays, BriefcaseBusiness, FolderKanban, Users, UserCheck, UsersRound, Settings, ChevronLeft, ChevronRight, ChevronUp, LogOut, Megaphone, Bell } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useSessao } from '../lib/sessao'
 import { AGENTE_PAGINA } from '../lib/agente'
@@ -37,6 +37,7 @@ const NAV_GROUPS: { label: string; items: ItemNav[] }[] = [
       { to: '/conversas', label: 'Conversas', icon: MessagesSquare, modulo: 'conversas' },
       { to: '/campanhas', label: 'Campanhas', icon: Megaphone, modulo: 'campanhas' },
       { to: '/agenda', label: 'Agenda', icon: CalendarDays },
+      { to: '/tarefas', label: 'Tarefas', icon: ListChecks },
       { to: '/avisos', label: 'Avisos', icon: Bell },
       { to: '/leads', label: 'Leads', icon: Users, end: true },
       { to: '/clientes', label: 'Clientes', icon: UserCheck },

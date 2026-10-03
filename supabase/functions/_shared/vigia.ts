@@ -12,7 +12,8 @@
  *      nunca responde ninguém fora da lista. É o esquecimento mais caro e mais silencioso.
  *   4. conversa adiada que chegou na hora: volta para a fila e a equipe é avisada.
  *   5. retenção de mídia: se o gestor definiu um prazo, apaga do Storage os arquivos mais velhos que ele.
- *   6. faxina dos avisos antigos, uma vez por hora.
+ *   6. tarefas vencidas: um aviso por pessoa ("Ana tem 3 tarefas vencidas"), que se fecha quando ela zera as vencidas.
+ *   7. faxina dos avisos antigos, uma vez por hora.
  *
  * Só lógica: banco, WhatsApp e relógio entram por `DepsVigia`. Cada verificação é isolada:
  * uma que falha não impede as outras, e o resultado diz quais falharam.
@@ -20,7 +21,7 @@
  * Ideia adaptada do DeskcommCRM (MIT, © 2026 Rafael Melgaço): `cron/recover-stuck-messages`,
  * `cron/channel-health` e `cron/canal-mudo-watcher`.
  */
-import { abrirAviso, resolverAviso, type Rpc } from './avisos.ts'
+import { abrirAviso, resolverAviso, resolverAvisosExceto, type Rpc } from './avisos.ts'
 
 /** Passado isto sem confirmação, a mensagem deixa de ser "enviando". */
 export const MINUTOS_ATE_PRESA = 5
@@ -46,13 +47,18 @@ export interface DepsVigia {
   reabrirAdiadas(): Promise<{ contatoId: string; nome: string | null }[]>
   /** Apaga do Storage (e registra) um lote de arquivos vencidos. Sem prazo definido, não faz nada. Devolve quantos. */
   removerMidiasVencidas(): Promise<number>
+  /** Quantas tarefas vencidas cada pessoa tem (`responsavelId` nulo = sem responsável), ou `null` se esta instalação ainda não tem tarefas. */
+  tarefasVencidas(): Promise<TarefasVencidas[] | null>
 }
+
+export interface TarefasVencidas { responsavelId: string | null; nome: string | null; quantidade: number; maisAntiga: Date }
 
 export interface ResultadoDoVigia {
   mensagensPresas: number
   conexao: 'ok' | 'caida' | 'nao_vigiada' | 'oscilou'
   assistenteEmTeste: boolean
   adiadasQueVoltaram: number
+  tarefasVencidas: number
   midiasRemovidas: number
   avisosApagados: number
   erros: string[]
@@ -107,6 +113,27 @@ async function vigiarAdiadas(deps: DepsVigia): Promise<number> {
   return voltaram.length
 }
 
+async function vigiarTarefas(deps: DepsVigia): Promise<number> {
+  const grupos = await deps.tarefasVencidas()
+  if (grupos === null) return 0
+  const agora = deps.agora().getTime()
+  for (const g of grupos) {
+    const dias = Math.max(0, Math.floor((agora - g.maisAntiga.getTime()) / 86_400_000))
+    const nome = g.nome?.trim() || 'Alguém da equipe'
+    const n = g.quantidade
+    await abrirAviso(deps.rpc, {
+      tipo: 'tarefas_vencidas', chave: g.responsavelId ?? 'sem_responsavel', gravidade: 'atencao', rota: '/tarefas',
+      titulo: g.responsavelId
+        ? (n === 1 ? `${nome} tem 1 tarefa vencida` : `${nome} tem ${n} tarefas vencidas`)
+        : (n === 1 ? '1 tarefa vencida está sem responsável' : `${n} tarefas vencidas estão sem responsável`),
+      detalhe: `${dias === 0 ? 'A mais antiga venceu hoje' : dias === 1 ? 'A mais antiga venceu ontem' : `A mais antiga venceu há ${dias} dias`}. Conclua, adie o prazo ou passe para outra pessoa.`,
+    })
+  }
+  // Quem zerou as vencidas deixa de aparecer: fecha o aviso de quem NÃO está na lista de hoje.
+  await resolverAvisosExceto(deps.rpc, 'tarefas_vencidas', grupos.map((g) => g.responsavelId ?? 'sem_responsavel'))
+  return grupos.reduce((soma, g) => soma + g.quantidade, 0)
+}
+
 async function vigiarAssistente(deps: DepsVigia): Promise<boolean> {
   const a = await deps.assistente()
   if (!a || a.modo !== 'teste') { if (a) await resolverAviso(deps.rpc, 'assistente_em_teste'); return false }
@@ -121,7 +148,7 @@ async function vigiarAssistente(deps: DepsVigia): Promise<boolean> {
 }
 
 export async function vigiar(deps: DepsVigia, expurgarAvisos: () => Promise<number>): Promise<ResultadoDoVigia> {
-  const r: ResultadoDoVigia = { mensagensPresas: 0, conexao: 'nao_vigiada', assistenteEmTeste: false, adiadasQueVoltaram: 0, midiasRemovidas: 0, avisosApagados: 0, erros: [] }
+  const r: ResultadoDoVigia = { mensagensPresas: 0, conexao: 'nao_vigiada', assistenteEmTeste: false, adiadasQueVoltaram: 0, tarefasVencidas: 0, midiasRemovidas: 0, avisosApagados: 0, erros: [] }
   const passo = async (nome: string, f: () => Promise<void>) => {
     try { await f() } catch (e) { r.erros.push(nome); console.error(`vigia: ${nome}:`, e instanceof Error ? e.message.slice(0, 160) : 'erro') }
   }
@@ -129,6 +156,7 @@ export async function vigiar(deps: DepsVigia, expurgarAvisos: () => Promise<numb
   await passo('conexao', async () => { r.conexao = await vigiarConexao(deps) })
   await passo('assistente', async () => { r.assistenteEmTeste = await vigiarAssistente(deps) })
   await passo('adiadas', async () => { r.adiadasQueVoltaram = await vigiarAdiadas(deps) })
+  await passo('tarefas', async () => { r.tarefasVencidas = await vigiarTarefas(deps) })
   await passo('midias', async () => { r.midiasRemovidas = await deps.removerMidiasVencidas() })
   // A faxina custa uma consulta e não precisa de pressa: uma vez por hora, nos primeiros 5 minutos.
   if (deps.agora().getUTCMinutes() < 5) await passo('faxina', async () => { r.avisosApagados = await expurgarAvisos() })

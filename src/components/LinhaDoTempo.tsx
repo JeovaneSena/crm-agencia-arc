@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, CalendarDays, CircleUser, Handshake, MessageSquare, StickyNote, UserCheck, type LucideIcon } from 'lucide-react'
+import { AlertTriangle, CalendarDays, CircleUser, Handshake, ListChecks, MessageSquare, StickyNote, UserCheck, type LucideIcon } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import { montarLinhaDoTempo, type AvisoDoTempo, type EventoDeConversa, type EventoDeOportunidade, type NotaDoTempo, type ReuniaoDoTempo, type TipoDeEvento } from '../lib/linhaDoTempo'
+import { montarLinhaDoTempo, type AvisoDoTempo, type EventoDeConversa, type EventoDeOportunidade, type NotaDoTempo, type ReuniaoDoTempo, type TarefaDoTempo, type TipoDeEvento } from '../lib/linhaDoTempo'
 import { moduloAtivo } from '../lib/modulos'
 import { useNomesDaEquipe } from '../lib/useEquipeAtiva'
 import { haQuanto } from '../lib/avisos'
 import { LoadingState } from './ui'
 
-const ICONE: Record<TipoDeEvento, LucideIcon> = { contato: CircleUser, oportunidade: Handshake, reuniao: CalendarDays, aviso: AlertTriangle, mensagem: MessageSquare, nota: StickyNote, conversa: UserCheck }
+const ICONE: Record<TipoDeEvento, LucideIcon> = { contato: CircleUser, oportunidade: Handshake, reuniao: CalendarDays, aviso: AlertTriangle, mensagem: MessageSquare, nota: StickyNote, conversa: UserCheck, tarefa: ListChecks }
 const VISIVEIS = 12
 
 interface LinhaEvento { id: string; status_anterior: string | null; status_novo: string; motivo: string | null; created_at: string; oportunidades: { nome: string; contato_id: string } | null }
@@ -23,6 +23,7 @@ export default function LinhaDoTempo({ contato, reunioes, ultimaMensagem, rotulo
   const [avisos, setAvisos] = useState<AvisoDoTempo[]>([])
   const [notas, setNotas] = useState<(NotaDoTempo & { autor_id: string | null })[]>([])
   const [conversaEventos, setConversaEventos] = useState<(EventoDeConversa & { de: string | null; para: string | null; por: string | null })[]>([])
+  const [tarefas, setTarefas] = useState<(TarefaDoTempo & { por: string | null })[]>([])
   const nomes = useNomesDaEquipe()
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState(false)
@@ -39,9 +40,11 @@ export default function LinhaDoTempo({ contato, reunioes, ultimaMensagem, rotulo
     const comConversas = moduloAtivo('conversas')
     const notasQ = comConversas ? supabase.from('notas_conversa').select('id,contato_id,texto,autor_id,created_at').eq('contato_id', contato.id).order('created_at', { ascending: false }).limit(50) : Promise.resolve({ data: [], error: null })
     const passagensQ = comConversas ? supabase.from('conversa_eventos').select('id,contato_id,tipo,por_usuario,para_usuario,created_at').eq('contato_id', contato.id).order('created_at', { ascending: false }).limit(50) : Promise.resolve({ data: [], error: null })
-    void Promise.all([eventosQ, avisosQ, notasQ, passagensQ]).then(([ev, av, nt, ps]) => {
+    const tarefasQ = supabase.from('tarefas').select('id,contato_id,titulo,concluida_em,concluida_por').eq('contato_id', contato.id).not('concluida_em', 'is', null).order('concluida_em', { ascending: false }).limit(50)
+    void Promise.all([eventosQ, avisosQ, notasQ, passagensQ, tarefasQ]).then(([ev, av, nt, ps, tf]) => {
       if (!vivo) return
-      if (ev.error || av.error || nt.error || ps.error) setErro(true)
+      if (ev.error || av.error || nt.error || ps.error || tf.error) setErro(true)
+      setTarefas(((tf.data ?? []) as unknown as { id: string; contato_id: string; titulo: string; concluida_em: string | null; concluida_por: string | null }[]).filter(t => t.contato_id === contato.id).map(t => ({ id: t.id, titulo: t.titulo, concluida_em: t.concluida_em, por: t.concluida_por, concluida_por_nome: null })))
       setNotas(((nt.data ?? []) as unknown as { id: string; contato_id: string; texto: string; autor_id: string | null; created_at: string }[]).filter(n => n.contato_id === contato.id).map(n => ({ id: n.id, texto: n.texto, created_at: n.created_at, autor_id: n.autor_id, autor_nome: null })))
       setConversaEventos(((ps.data ?? []) as unknown as { id: string; contato_id: string; tipo: EventoDeConversa['tipo']; por_usuario: string | null; para_usuario: string | null; created_at: string }[]).filter(p => p.contato_id === contato.id).map(p => ({ id: p.id, tipo: p.tipo, created_at: p.created_at, por: p.por_usuario, para: p.para_usuario, de: null, por_nome: null, para_nome: null })))
       // Defesa em profundidade: o filtro do banco já separa os contatos, mas nunca exibimos linha de outro.
@@ -56,10 +59,11 @@ export default function LinhaDoTempo({ contato, reunioes, ultimaMensagem, rotulo
   const itens = useMemo(
     () => montarLinhaDoTempo({
       contato, eventos, reunioes, avisos, ultimaMensagem, rotuloEtapa,
+      tarefas: tarefas.map(t => ({ ...t, concluida_por_nome: t.por ? nomes.get(t.por) ?? null : null })),
       notas: notas.map(n => ({ ...n, autor_nome: n.autor_id ? nomes.get(n.autor_id) ?? null : null })),
       conversaEventos: conversaEventos.map(c => ({ ...c, por_nome: c.por ? nomes.get(c.por) ?? null : null, para_nome: c.para ? nomes.get(c.para) ?? null : null })),
     }),
-    [contato, eventos, reunioes, avisos, ultimaMensagem, rotuloEtapa, notas, conversaEventos, nomes],
+    [contato, eventos, reunioes, avisos, ultimaMensagem, rotuloEtapa, notas, conversaEventos, tarefas, nomes],
   )
   const mostrados = tudo ? itens : itens.slice(0, VISIVEIS)
 

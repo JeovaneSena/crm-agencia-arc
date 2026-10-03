@@ -162,6 +162,7 @@ Deno.test('anexos: tamanho legível', () => { eq(tamanhoLegivel(500), '1 KB'); e
 
 // ---------- linha do tempo ----------
 import { montarLinhaDoTempo } from '../../src/lib/linhaDoTempo.ts'
+import { agruparTarefas, contarVencidas, doCampoDeData, grupoDaTarefa, paraCampoDeData, prazosRapidos, rotuloDoPrazo, validarNovaTarefa, type Tarefa } from '../../src/lib/tarefasRegras.ts'
 Deno.test('linha do tempo: junta etapas, reuniões, avisos, notas e passagens, do mais novo ao mais velho', () => {
   const r = montarLinhaDoTempo({
     contato: { id: 'c', created_at: '2026-10-01T09:00:00Z' },
@@ -178,14 +179,82 @@ Deno.test('linha do tempo: junta etapas, reuniões, avisos, notas e passagens, d
       { id: 'v2', tipo: 'transferiu', created_at: '2026-10-02T11:30:00Z', por_nome: 'Ana', para_nome: 'Beto' },
       { id: 'v3', tipo: 'devolveu', created_at: '2026-10-02T11:40:00Z', por_nome: null, para_nome: null },
     ],
+    tarefas: [{ id: 't1', titulo: 'Ligar para confirmar', concluida_em: '2026-10-03T15:00:00Z', concluida_por_nome: 'Ana' }, { id: 't2', titulo: 'Ainda aberta', concluida_em: null, concluida_por_nome: null }, { id: 't3', titulo: 'Sem autor', concluida_em: '2026-10-01T10:00:00Z', concluida_por_nome: null }],
     ultimaMensagem: 'data inválida',
   })
   eq(r.map((x) => x.titulo), [
-    'Aviso dispensado: Pediu para parar', 'Aviso: Pediu para parar', 'Reunião cancelada: Diagnóstico',
+    'Tarefa concluída: Ligar para confirmar', 'Aviso dispensado: Pediu para parar', 'Aviso: Pediu para parar', 'Reunião cancelada: Diagnóstico',
     'Nota interna', 'Nota interna de Ana', 'Alguém da equipe devolveu a conversa', 'Ana passou a conversa para Beto', 'Ana assumiu a conversa',
-    'Site: Novo lead → Proposta', 'Reunião marcada: Diagnóstico', 'Site: aberta em Novo lead', 'Contato criado',
+    'Site: Novo lead → Proposta', 'Reunião marcada: Diagnóstico', 'Tarefa concluída: Sem autor', 'Site: aberta em Novo lead', 'Contato criado',
   ])
+  eq(r.find((x) => x.id === 'tarefa-t1')?.detalhe, 'Por Ana'); eq(r.find((x) => x.id === 'tarefa-t3')?.detalhe, undefined); assert(!r.some((x) => x.id === 'tarefa-t2'), 'tarefa aberta não é história')
   eq(r.find((x) => x.id === 'op-e2')?.detalhe, 'Pediu orçamento'); eq(r.find((x) => x.id === 'nota-n1')?.detalhe, 'Prefere terças')
   eq(r.find((x) => x.id === 'nota-n2')?.detalhe?.length, 160, 'nota longa é cortada')
   eq(r.find((x) => x.id === 'reuniao-r1-fim')?.detalhe, 'Remarcou'); assert(!r.some((x) => x.tipo === 'mensagem'), 'data inválida não entra')
+})
+
+
+// ── Tarefas (0020). Datas montadas no fuso do próprio teste, para valer em qualquer máquina. ──
+const T = (id: string, vence: Date, o: Partial<Tarefa> = {}): Tarefa => ({ id, titulo: id, detalhe: null, vence_em: vence.toISOString(), contato_id: null, oportunidade_id: null, responsavel_id: null, origem: 'manual', criada_por: null, concluida_em: null, concluida_por: null, created_at: '2026-10-01T00:00:00Z', ...o })
+const AGORA = new Date(2026, 9, 7, 14, 30)            // quarta-feira, 07/10/2026, 14h30
+const em = (dias: number, h = 9, m = 0) => new Date(2026, 9, 7 + dias, h, m)
+
+Deno.test('tarefas: vencida é prazo no passado (mesmo de hoje); hoje é o que ainda vence hoje; o resto é próximas', () => {
+  eq(grupoDaTarefa(em(0, 14, 29).toISOString(), AGORA), 'vencidas')
+  eq(grupoDaTarefa(em(0, 14, 30).toISOString(), AGORA), 'hoje')
+  eq(grupoDaTarefa(em(0, 23, 59).toISOString(), AGORA), 'hoje')
+  eq(grupoDaTarefa(em(1, 0, 0).toISOString(), AGORA), 'proximas')
+  eq(grupoDaTarefa(em(-1, 23, 0).toISOString(), AGORA), 'vencidas')
+})
+
+Deno.test('tarefas: agrupa só as abertas, a mais urgente primeiro, e ignora data inválida', () => {
+  const g = agruparTarefas([
+    T('a-amanha', em(1)), T('b-vencida-recente', em(0, 8)), T('c-hoje', em(0, 18)), T('d-vencida-antiga', em(-5)),
+    T('e-feita', em(-2), { concluida_em: '2026-10-06T10:00:00Z' }), { ...T('f-quebrada', em(0)), vence_em: 'não é data' }, T('g-semana', em(6)),
+  ], AGORA)
+  eq(g.vencidas.map((t) => t.id), ['d-vencida-antiga', 'b-vencida-recente'])
+  eq(g.hoje.map((t) => t.id), ['c-hoje'])
+  eq(g.proximas.map((t) => t.id), ['a-amanha', 'g-semana'])
+})
+
+Deno.test('tarefas: o rótulo do prazo diz quando venceu ou vence, em português', () => {
+  eq(rotuloDoPrazo(em(0, 9).toISOString(), AGORA), 'venceu hoje às 09:00')
+  eq(rotuloDoPrazo(em(-1, 18).toISOString(), AGORA), 'venceu ontem')
+  eq(rotuloDoPrazo(em(-3, 9).toISOString(), AGORA), 'venceu há 3 dias')
+  eq(rotuloDoPrazo(em(0, 16).toISOString(), AGORA), 'hoje às 16:00')
+  eq(rotuloDoPrazo(em(1, 9).toISOString(), AGORA), 'amanhã às 09:00')
+  assert(/^sex\.?,? 09\/10 às 09:00$/.test(rotuloDoPrazo(em(2, 9).toISOString(), AGORA)), rotuloDoPrazo(em(2, 9).toISOString(), AGORA))
+  eq(rotuloDoPrazo('lixo', AGORA), 'sem prazo válido')
+})
+
+Deno.test('tarefas: prazos rápidos — "hoje" some quando falta menos de 1 h para as 18h; a semana que vem é a próxima segunda', () => {
+  eq(prazosRapidos(AGORA).map((p) => p.chave), ['hoje', 'amanha', 'tres-dias', 'semana'])
+  eq(prazosRapidos(AGORA).map((p) => paraCampoDeData(p.data)), ['2026-10-07T18:00', '2026-10-08T09:00', '2026-10-10T09:00', '2026-10-12T09:00'])
+  eq(prazosRapidos(new Date(2026, 9, 7, 17, 30)).map((p) => p.chave), ['amanha', 'tres-dias', 'semana'])
+  eq(prazosRapidos(new Date(2026, 9, 7, 17, 0)).map((p) => p.chave)[0], 'hoje')
+  // segunda-feira: a "semana que vem" é daqui a 7 dias; domingo: amanhã; sábado: depois de amanhã
+  eq(paraCampoDeData(prazosRapidos(new Date(2026, 9, 5, 10, 0)).at(-1)!.data), '2026-10-12T09:00')
+  eq(paraCampoDeData(prazosRapidos(new Date(2026, 9, 11, 10, 0)).at(-1)!.data), '2026-10-12T09:00')
+  eq(paraCampoDeData(prazosRapidos(new Date(2026, 9, 10, 10, 0)).at(-1)!.data), '2026-10-12T09:00')
+})
+
+Deno.test('tarefas: campo de data vai e volta sem trocar o horário; vazio e lixo viram nulo', () => {
+  eq(doCampoDeData(paraCampoDeData(em(2, 9, 5))), em(2, 9, 5).toISOString())
+  eq(doCampoDeData(''), null); eq(doCampoDeData('amanhã'), null); eq(doCampoDeData('2026-13-45T25:61'), null)
+})
+
+Deno.test('tarefas: valida título e prazo antes de criar', () => {
+  eq(validarNovaTarefa('   ', '2026-10-08T09:00'), 'Escreva o que precisa ser feito.')
+  eq(validarNovaTarefa('x'.repeat(201), '2026-10-08T09:00'), 'O título passa de 200 caracteres.')
+  eq(validarNovaTarefa('Ligar', ''), 'Escolha o prazo.')
+  eq(validarNovaTarefa(' Ligar ', '2026-10-08T09:00'), null)
+  eq(validarNovaTarefa('x'.repeat(200), '2026-10-08T09:00'), null)
+})
+
+Deno.test('tarefas: conta vencidas no total e por responsável (null = sem responsável)', () => {
+  const lista = [T('1', em(-1), { responsavel_id: 'ana' }), T('2', em(-2), { responsavel_id: 'ana' }), T('3', em(-1)), T('4', em(1), { responsavel_id: 'ana' }), T('5', em(-4), { responsavel_id: 'ana', concluida_em: '2026-10-05T00:00:00Z' })]
+  eq(contarVencidas(lista, AGORA), 3)
+  eq(contarVencidas(lista, AGORA, 'ana'), 2)
+  eq(contarVencidas(lista, AGORA, null), 1)
+  eq(contarVencidas(lista, AGORA, 'bruno'), 0)
 })

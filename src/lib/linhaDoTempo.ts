@@ -9,7 +9,7 @@
  * mais velho. Quem lê do banco é o componente. Ideia adaptada do DeskcommCRM (MIT,
  * © 2026 Rafael Melgaço): timeline única do contato.
  */
-export type TipoDeEvento = 'contato' | 'oportunidade' | 'reuniao' | 'aviso' | 'mensagem' | 'nota' | 'conversa'
+export type TipoDeEvento = 'contato' | 'oportunidade' | 'reuniao' | 'aviso' | 'mensagem' | 'nota' | 'conversa' | 'tarefa'
 
 export interface EventoDoTempo {
   id: string
@@ -27,6 +27,9 @@ export interface AvisoDoTempo { id: string; titulo: string; detalhe: string | nu
 export interface NotaDoTempo { id: string; texto: string; created_at: string; autor_nome: string | null }
 export interface EventoDeConversa { id: string; tipo: 'assumiu' | 'transferiu' | 'devolveu'; created_at: string; por_nome: string | null; para_nome: string | null }
 
+/** Só as concluídas contam como história; as abertas ficam na seção Tarefas da ficha. */
+export interface TarefaDoTempo { id: string; titulo: string; concluida_em: string | null; concluida_por_nome: string | null }
+
 export interface EntradaDaLinha {
   contato: { id: string; created_at: string }
   eventos: EventoDeOportunidade[]
@@ -35,6 +38,7 @@ export interface EntradaDaLinha {
   /** Só instalações com o módulo conversas. */
   notas?: NotaDoTempo[]
   conversaEventos?: EventoDeConversa[]
+  tarefas?: TarefaDoTempo[]
   /** Última mensagem do cliente (só instalações com o módulo conversas). */
   ultimaMensagem?: string | null
   rotuloEtapa: (chave: string) => string
@@ -85,6 +89,11 @@ export function montarLinhaDoTempo(e: EntradaDaLinha): EventoDoTempo[] {
       : c.tipo === 'devolveu' ? `${quem} devolveu a conversa`
       : c.para_nome && c.para_nome !== quem ? `${quem} passou a conversa para ${c.para_nome}` : `${quem} assumiu a conversa`
     add({ id: `conversa-${c.id}`, quando: c.created_at, tipo: 'conversa', titulo })
+  }
+
+  for (const t of e.tarefas ?? []) {
+    if (!valido(t.concluida_em)) continue
+    add({ id: `tarefa-${t.id}`, quando: t.concluida_em, tipo: 'tarefa', titulo: `Tarefa concluída: ${t.titulo}`, detalhe: t.concluida_por_nome ? `Por ${t.concluida_por_nome}` : undefined })
   }
 
   // Mais novo primeiro; em empate, a ordem em que entraram (o id desempata, para não tremer entre renderizações).

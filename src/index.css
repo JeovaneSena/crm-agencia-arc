@@ -769,3 +769,28 @@ svg { flex-shrink: 0; }
 .attach-chip span { font-weight: 600; overflow-wrap: anywhere; }
 .attach-chip small { color: var(--muted); }
 .attach-chip button { border: 0; background: transparent; color: var(--muted); cursor: pointer; font-size: 16px; line-height: 1; }
+
+/* Tarefas: formulário, atalhos de prazo e linhas agrupadas. */
+.tarefa-form { display: grid; gap: 10px; }
+.tarefa-form-linha { display: grid; grid-template-columns: minmax(180px, 220px) minmax(120px, 200px) auto; gap: 8px; align-items: center; }
+.tarefa-form-linha .arc-field { width: 100%; }
+.tarefa-atalhos { display: flex; flex-wrap: wrap; gap: 6px; }
+.tarefa-atalho { padding: 4px 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--text); font: 12px var(--font-body); cursor: pointer; }
+.tarefa-atalho:hover { background: var(--surface-subtle); }
+.tarefa-grupo { margin: 0 0 18px; }
+.tarefa-grupo h3 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.tarefa-grupo h3 span { font-weight: 600; margin-left: 4px; }
+.tarefa-grupo ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.tarefa-linha { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+.tarefa-corpo { flex: 1 1 auto; min-width: 0; display: grid; gap: 2px; }
+.tarefa-corpo strong { overflow-wrap: anywhere; font-weight: 600; }
+.tarefa-corpo small { color: var(--muted); }
+.tarefa-corpo small a { color: var(--accent); }
+.tarefa-feita .tarefa-corpo strong { text-decoration: line-through; color: var(--muted); font-weight: 500; }
+.tarefa-vencida { color: var(--danger) !important; font-weight: 600; }
+.tarefa-check, .tarefa-apagar { flex-shrink: 0; display: grid; place-items: center; width: 30px; height: 30px; border: 1px solid var(--border-strong); border-radius: 50%; background: var(--surface); color: var(--muted); cursor: pointer; }
+.tarefa-check:hover:not(:disabled) { background: var(--success-soft); color: var(--success); border-color: var(--success-border); }
+.tarefa-apagar { border-color: transparent; }
+.tarefa-apagar:hover:not(:disabled) { background: var(--danger-soft); color: var(--danger); }
+.tarefa-check:disabled, .tarefa-apagar:disabled { opacity: .5; cursor: not-allowed; }
+@media (max-width: 850px) { .tarefa-form-linha { grid-template-columns: 1fr; } .tarefa-linha { flex-wrap: wrap; } }

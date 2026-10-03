@@ -47,6 +47,16 @@ const abertasMock=[{...opportunity,id:'opp-a',nome:'Site institucional',status:'
 const ETQ=[{id:'e1',nome:'Quente',cor:'danger'},{id:'e2',nome:'Indicação',cor:'info'}]
 let paresEtq=[{contato_id:'00000000-0000-4000-8000-000000000002',etiqueta_id:'e1'}]
 let avisos=[{id:'av1',tipo:'conexao_caida',gravidade:'critico',titulo:'WhatsApp desconectado',detalhe:'Reconecte o número para voltar a receber mensagens.',rota:'/configuracoes',contato_id:null,somente_gestor:true,ocorrencias:3,criado_em:new Date().toISOString(),ultima_em:new Date().toISOString(),resolvido_em:null,resolucao:null},{id:'av2',tipo:'mensagem_presa',gravidade:'atencao',titulo:'Uma mensagem não saiu',detalhe:null,rota:'https://externo.example/phishing',contato_id:'00000000-0000-4000-8000-000000000002',somente_gestor:false,ocorrencias:1,criado_em:new Date().toISOString(),ultima_em:new Date().toISOString(),resolvido_em:null,resolucao:null}]
+const amanha9=new Date();amanha9.setDate(amanha9.getDate()+1);amanha9.setHours(9,0,0,0)
+const diasAdiante=(n)=>{const d=new Date();d.setDate(d.getDate()+n);d.setHours(9,0,0,0);return d.toISOString()}
+const tarefaBase={detalhe:null,oportunidade_id:null,origem:'manual',criada_por:'00000000-0000-4000-8000-000000000001',concluida_em:null,concluida_por:null,created_at:now}
+const tarefasMock=[
+ {...tarefaBase,id:'t-venc',titulo:'Ligar para confirmar a proposta',vence_em:diasAdiante(-2),contato_id:lead.id,responsavel_id:'00000000-0000-4000-8000-000000000001',contato:{id:lead.id,nome:lead.nome}},
+ {...tarefaBase,id:'t-colega',titulo:'Revisar a agenda da semana',vence_em:amanha9.toISOString(),contato_id:null,responsavel_id:'00000000-0000-4000-8000-0000000000aa',contato:null},
+ {...tarefaBase,id:'t-sem',titulo:'Cobrar o briefing do cliente',vence_em:diasAdiante(3),contato_id:lead.id,responsavel_id:null,origem:'sistema',contato:{id:lead.id,nome:lead.nome}},
+ {...tarefaBase,id:'t-feita',titulo:'Enviar a minuta do contrato',vence_em:diasAdiante(-1),contato_id:lead.id,responsavel_id:'00000000-0000-4000-8000-000000000001',concluida_em:new Date(Date.now()-3600000).toISOString(),concluida_por:'00000000-0000-4000-8000-000000000001',contato:{id:lead.id,nome:lead.nome}},
+ {...tarefaBase,id:'t-outra',titulo:'Tarefa de OUTRA pessoa',vence_em:diasAdiante(5),contato_id:'outro-contato',responsavel_id:null,contato:{id:'outro-contato',nome:'Outra'}},
+]
 const browser = await chromium.launch({headless:true,args:['--no-sandbox']})
 const context = await browser.newContext({viewport:{width:1440,height:1000}})
 const errors=[]
@@ -54,7 +64,7 @@ const page = await context.newPage()
 page.on('pageerror',e=>errors.push(e.message))
 const dias = Array.from({length:7},(_,i)=>i)
 const tabelas = {
- avisos:()=>avisos.filter(a=>!a.resolvido_em), etiquetas:()=>ETQ, contato_etiquetas:()=>paresEtq, contatos:()=>[lead], reunioes:()=>[meeting], profissionais:()=>[professional], catalogo_servicos:()=>services,
+ avisos:()=>avisos.filter(a=>!a.resolvido_em), tarefas:()=>tarefasMock, etiquetas:()=>ETQ, contato_etiquetas:()=>paresEtq, contatos:()=>[lead], reunioes:()=>[meeting], profissionais:()=>[professional], catalogo_servicos:()=>services,
  oportunidades:()=>[opportunity,...abertasMock], etapas_funil:()=>[], horario_comercial:()=>[],
  profissional_horarios:()=>dias.map(d=>({id:`h${d}`,profissional_id:professional.id,dia_semana:d,hora_inicio:'08:00',hora_fim:'18:00',ativo:true})),
  projetos:()=>[{id:'proj-1',contato_id:lead.id,oportunidade_id:opportunity.id,nome:'Projeto da venda inicial',etapa:'planejamento',prazo:null,escopo:'Escopo inicial',responsavel_id:null,created_at:now,updated_at:now,cliente:{nome:lead.nome,empresa:lead.empresa,status:lead.status},oportunidade:{nome:opportunity.nome,status:'ganho',cancelado_em:null}}],
@@ -104,7 +114,7 @@ try {
  assert(!proibido.test(await page.locator('body').innerText()),'Marca ou texto de nicho no login')
  await page.evaluate(({project,session})=>localStorage.setItem(`sb-${project}-auth-token`,JSON.stringify(session)),{project,session})
  // Núcleo apenas: sem VITE_MODULOS, módulos opcionais não aparecem no menu.
- const rotas=['/','/crm','/leads','/clientes','/servicos','/equipe','/agenda','/avisos',`/leads/${lead.id}`,'/configuracoes','/usuarios']
+ const rotas=['/','/crm','/leads','/clientes','/servicos','/equipe','/agenda','/tarefas','/avisos',`/leads/${lead.id}`,'/configuracoes','/usuarios']
  for(const path of rotas){
   await page.goto(base+path)
   await page.waitForTimeout(600)
@@ -137,7 +147,7 @@ try {
  assert(tempo.includes('Reunião marcada: Reunião inicial'),'linha do tempo sem a reunião')
  assert(tempo.includes('Aviso: Uma mensagem não saiu'),'linha do tempo sem o aviso do contato')
  assert(!tempo.includes('OUTRA pessoa'),'a linha do tempo mostrou evento de outro contato')
- if(comConversas) assert(tempo.includes('Nota interna de Equipe Teste')&&tempo.includes('Cliente prefere falar às terças.')&&tempo.includes('Equipe Teste passou a conversa para Colega'),'a linha do tempo sem a nota interna e a passagem da conversa')
+ if(modulosLigados.includes('conversas')) assert(tempo.includes('Nota interna de Equipe Teste')&&tempo.includes('Cliente prefere falar às terças.')&&tempo.includes('Equipe Teste passou a conversa para Colega'),'a linha do tempo sem a nota interna e a passagem da conversa')
  else assert(!tempo.includes('Nota interna'),'nota interna apareceu sem o módulo conversas')
  console.log('PASS linha do tempo do contato')
  // Etiquetas: marcar na ficha (criando se for nova), filtrar a lista e a gestão (renomear, juntar) só do gestor.
@@ -166,6 +176,60 @@ try {
  await page.getByLabel('Etiqueta de destino').selectOption({label:'Indicação'}); await page.getByRole('button',{name:'Juntar',exact:true}).click(); await page.waitForTimeout(400)
  assert.deepEqual(juntou,{p_origem:'e1',p_destino:'e2'},'juntar não chamou a função com origem e destino')
  console.log('PASS etiquetas: marcar, criar, filtrar, renomear e juntar')
+
+ // Tarefas: grupos e filtro, criar com prazo rápido, concluir/reabrir, adiar, apagar, e a ficha só com as do contato.
+ let tarefaCriada=null, concluidas=[], prazoNovo=null, tarefaApagada=null
+ await context.route('**/rest/v1/tarefas*',async r=>{const m=r.request().method()
+  if(m==='POST'){tarefaCriada=r.request().postDataJSON();return r.fulfill({status:201,contentType:'application/json',body:'[]'})}
+  if(m==='PATCH'){prazoNovo={id:new URL(r.request().url()).searchParams.get('id'),...r.request().postDataJSON()};return r.fulfill({status:200,contentType:'application/json',body:'[]'})}
+  if(m==='DELETE'){tarefaApagada=new URL(r.request().url()).searchParams.get('id');return r.fulfill({status:200,contentType:'application/json',body:JSON.stringify([{id:'t-venc'}])})}
+  return r.fallback()})
+ await context.route('**/rest/v1/rpc/tarefa_concluir',async r=>{concluidas.push(r.request().postDataJSON());await r.fulfill({status:200,contentType:'application/json',body:''})})
+ await page.goto(base+'/tarefas')
+ await page.getByRole('heading',{name:'Tarefas',exact:true}).waitFor()
+ await page.getByText('Ligar para confirmar a proposta').waitFor()
+ let lista=await page.locator('.page-content').innerText()
+ assert(lista.includes('Você tem 1 tarefa vencida.')&&lista.includes('venceu há 2 dias'),'tarefas: faltou o aviso de vencida e o prazo por extenso')
+ assert(!lista.includes('Revisar a agenda da semana')&&!lista.includes('Cobrar o briefing'),'tarefas: "Minhas" mostrou tarefa de outra pessoa ou sem responsável')
+ assert.equal(await page.getByRole('region',{name:'Vencidas'}).count(),1,'tarefas: sem o grupo Vencidas')
+ await page.getByRole('tab',{name:'Todas'}).click()
+ await page.getByText('Revisar a agenda da semana').waitFor()
+ lista=await page.locator('.page-content').innerText()
+ assert(lista.includes('Cobrar o briefing do cliente')&&lista.includes('criada pelo sistema')&&lista.includes('sem responsável'),'tarefas: "Todas" sem a tarefa do sistema e sem responsável')
+ assert(await page.getByRole('region',{name:'Concluídas'}).getByText('Enviar a minuta do contrato').count()===1,'tarefas: faltou a concluída na última semana')
+ await page.getByRole('tab',{name:'Sem responsável'}).click()
+ assert(!(await page.locator('.page-content').innerText()).includes('Revisar a agenda da semana'),'tarefas: filtro "Sem responsável" mostrou tarefa com dono')
+ await page.getByRole('tab',{name:'Todas'}).click()
+ await page.getByLabel('O que precisa ser feito').fill('  Enviar contrato  ')
+ await page.getByRole('button',{name:'Criar tarefa'}).click()
+ await page.getByText('Escolha o prazo.').waitFor()
+ assert.equal(tarefaCriada,null,'tarefas: criou sem prazo')
+ await page.getByRole('button',{name:'Amanhã, 9h'}).click(); await page.getByRole('button',{name:'Criar tarefa'}).click(); await page.waitForTimeout(500)
+ assert.deepEqual(tarefaCriada,{titulo:'Enviar contrato',vence_em:amanha9.toISOString(),detalhe:null,contato_id:null,oportunidade_id:null,responsavel_id:null},'tarefas: corpo da criação errado')
+ await page.getByRole('button',{name:'Concluir: Ligar para confirmar a proposta'}).click(); await page.waitForTimeout(400)
+ await page.getByRole('button',{name:'Reabrir: Enviar a minuta do contrato'}).click(); await page.waitForTimeout(400)
+ assert.deepEqual(concluidas,[{p_id:'t-venc',p_feita:true},{p_id:'t-feita',p_feita:false}],'tarefas: concluir e reabrir devem chamar a função com p_feita certo')
+ await page.getByLabel('Mudar o prazo de Ligar para confirmar a proposta').selectOption({label:'Em 3 dias, 9h'}); await page.waitForTimeout(400)
+ assert.deepEqual(prazoNovo,{id:'eq.t-venc',vence_em:diasAdiante(3)},'tarefas: adiar não gravou o novo prazo')
+ await page.getByRole('button',{name:'Apagar: Ligar para confirmar a proposta'}).click()
+ assert.equal(tarefaApagada,null,'tarefas: apagou sem confirmar')
+ await page.getByRole('button',{name:'Apagar',exact:true}).click(); await page.waitForTimeout(400)
+ assert.equal(tarefaApagada,'eq.t-venc','tarefas: não apagou a tarefa confirmada')
+ // Ficha do contato: só as tarefas dele, já ligadas a ele; a feita entra na linha do tempo.
+ tarefaCriada=null
+ await page.goto(base+`/leads/${lead.id}`)
+ await page.getByRole('form',{name:'Nova tarefa'}).waitFor()
+ await page.getByText('Cobrar o briefing do cliente').waitFor()
+ await page.getByRole('list',{name:'Linha do tempo do contato'}).getByText('Tarefa concluída: Enviar a minuta do contrato').waitFor()
+ const ficha=await page.locator('body').innerText()
+ assert(ficha.includes('Cobrar o briefing do cliente')&&!ficha.includes('OUTRA pessoa')&&!ficha.includes('Revisar a agenda da semana'),'tarefas: a ficha mostrou tarefa de outro contato')
+ assert((await page.getByRole('list',{name:'Linha do tempo do contato'}).innerText()).includes('Tarefa concluída: Enviar a minuta do contrato'),'tarefas: a linha do tempo sem a tarefa concluída')
+ await page.getByRole('form',{name:'Nova tarefa'}).getByLabel('O que precisa ser feito').fill('Mandar o briefing')
+ await page.getByRole('form',{name:'Nova tarefa'}).getByRole('button',{name:'Em 3 dias, 9h'}).click(); await page.getByRole('form',{name:'Nova tarefa'}).getByRole('button',{name:'Criar tarefa'}).click(); await page.waitForTimeout(500)
+ assert.equal(tarefaCriada?.contato_id,lead.id,'tarefas: criada na ficha deveria nascer ligada ao contato')
+ assert(await page.getByRole('link',{name:'Tarefas'}).count()>=1,'tarefas: item no menu do núcleo')
+ console.log('PASS tarefas: grupos, filtros, criar, concluir, reabrir, adiar, apagar e ficha')
+
  // CRM: responsável no cartão, filtro "Minhas" e ações em lote (a função do banco é tudo-ou-nada).
  await page.goto(base+'/crm')
  await page.getByText('Responsável: Equipe Teste').waitFor(); await page.locator('.crm-deal-owner',{hasText:'Sem responsável'}).first().waitFor()

@@ -3,7 +3,7 @@ import OportunidadeReuniao from '../components/OportunidadeReuniao'
 import Oportunidades from '../components/Oportunidades'
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Phone, Clock, Save, Plus, X, CalendarDays, ClipboardList, MessagesSquare, History, Tag } from 'lucide-react'
+import { ArrowLeft, Phone, Clock, Save, Plus, X, CalendarDays, ClipboardList, MessagesSquare, History, Tag, ListChecks } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { isCliente } from '../lib/pessoas'
 import { formatarParaExibicao } from '../lib/telefones'
@@ -18,6 +18,7 @@ import ApagarEstaPessoa from '../components/ApagarEstaPessoa'
 import ConsentimentoMarketing from '../components/ConsentimentoMarketing'
 import LinhaDoTempo from '../components/LinhaDoTempo'
 import EtiquetasDoContato from '../components/EtiquetasDoContato'
+import { TarefasDoContato } from '../components/Tarefas'
 import type { Contato, Consulta, ReuniaoStatus, Profissional, ProfissionalHorario } from '../types'
 
 /* ──────────────────────────────────────────────
@@ -562,6 +563,13 @@ export default function LeadDetail() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Tarefas: o próximo passo desta pessoa, com prazo e responsável. */}
+      <div className="fade-in-2">
+        <SectionCard title="Tarefas" icon={ListChecks}>
+          <TarefasDoContato contatoId={lead.id} />
+        </SectionCard>
       </div>
 
       {/* Linha do tempo: etapas, reuniões e avisos do contato, numa ordem só. */}

@@ -50,6 +50,8 @@
     "test:responsavel:db:apply": "node scripts/base-migrar.mjs apply database/base/0018_responsavel_e_lote.sql database/base/0018_check.sql --confirm",
     "test:importar:db:rehearsal": "node scripts/base-migrar.mjs rehearse database/base/0019_importar_contatos.sql database/base/0019_check.sql",
     "test:importar:db:apply": "node scripts/base-migrar.mjs apply database/base/0019_importar_contatos.sql database/base/0019_check.sql --confirm",
+    "test:tarefas:db:rehearsal": "node scripts/base-migrar.mjs rehearse database/base/0020_tarefas.sql database/base/0020_check.sql",
+    "test:tarefas:db:apply": "node scripts/base-migrar.mjs apply database/base/0020_tarefas.sql database/base/0020_check.sql --confirm",
     "test:projetos:db:rehearsal": "node scripts/base-migrar.mjs rehearse database/base/0008_modulo_projetos.sql database/base/0008_check.sql",
     "test:projetos:db:apply": "node scripts/base-migrar.mjs apply database/base/0008_modulo_projetos.sql database/base/0008_check.sql --confirm",
     "test:ui:projetos": "node scripts/browser-check.mjs --projetos",

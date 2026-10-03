@@ -1,5 +1,5 @@
 // Sem dependência externa, como os outros testes de `_shared`.
-import { abrirAviso, argumentosDoAviso, resolverAviso, type Rpc } from './avisos.ts'
+import { abrirAviso, argumentosDoAviso, resolverAviso, resolverAvisosExceto, type Rpc } from './avisos.ts'
 
 function assertEquals(real: unknown, esperado: unknown, msg = ''): void {
   if (JSON.stringify(real) !== JSON.stringify(esperado)) throw new Error(`${msg} esperado ${JSON.stringify(esperado)}, veio ${JSON.stringify(real)}`)
@@ -60,4 +60,13 @@ Deno.test('resolverAviso manda a chave ou null', async () => {
   assertEquals(await resolverAviso(rpc, 'conexao_caida'), 2)
   await resolverAviso(rpc, 'mensagem_presa', 'c1')
   assertEquals(vistos, [{ p_tipo: 'conexao_caida', p_chave: null }, { p_tipo: 'mensagem_presa', p_chave: 'c1' }])
+})
+
+Deno.test('resolverAvisosExceto manda o tipo e as chaves que continuam, e nunca lança', async () => {
+  const vistas: Record<string, unknown>[] = []
+  const rpc = (async (nome: string, args: Record<string, unknown>) => { assertEquals(nome, 'aviso_resolver_exceto'); vistas.push(args); return 3 }) as Rpc
+  assertEquals(await resolverAvisosExceto(rpc, 'tarefas_vencidas', ['u1', 'sem_responsavel']), 3)
+  assertEquals(vistas, [{ p_tipo: 'tarefas_vencidas', p_chaves: ['u1', 'sem_responsavel'] }])
+  const quebrado = (async () => { throw new Error('rede fora') }) as unknown as Rpc
+  assertEquals(await resolverAvisosExceto(quebrado, 'tarefas_vencidas', []), 0)
 })

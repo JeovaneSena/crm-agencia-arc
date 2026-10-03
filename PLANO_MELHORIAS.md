@@ -34,6 +34,17 @@ Data: 03/10/2026. Referência: repositório público `melgarafael/DeskcommCRM`, 
     pelo WhatsApp sem conversão); (3) mini-conversa flutuante e atalhos de teclado não foram feitos; (4) a mensagem
     "SAIR" pela uazapi com o assistente desligado ainda não revoga o marketing (limite da fase 1).
 
+- **Fase 3 (nenhum lead morre em silêncio): em andamento, começou em 03/10/2026. Nada publicado ainda (alterações no
+  diretório de trabalho, sem commit).** Ordem: tarefas, radar, volta automática ao assistente e recuperação de falta,
+  lembretes de reunião, follow-up v1 (os dois últimos dependem do canal de envio: decisão pendente 2).
+  - **Tarefas (0020): feitas.** Tela Tarefas, seção na ficha, tarefa concluída na linha do tempo, aviso "um por pessoa" no
+    vigia (`aviso_resolver_exceto`). Ensaiado em PGlite (com troca de regra de propósito para provar que o ensaio falha),
+    testes Deno e de tela, instalação gerada só com o núcleo e com todos os módulos. **Nada foi aplicado em Supabase real.**
+    Ver `docs/NUCLEO_DO_CRM.md`. Limite: o aviso de vencidas depende do vigia (módulo conversas); só com o núcleo, a tela
+    funciona e a Central não avisa.
+  - Corrigido de passagem: `browser-check` falhava em `--assistente` e `--campanhas` por um teste que ignorava que esses
+    módulos ligam as conversas (já falhava no commit `c2cca6a`).
+
 ## O que foi revisado
 
 O DeskcommCRM tem cerca de 990 arquivos TypeScript, 188 tabelas em

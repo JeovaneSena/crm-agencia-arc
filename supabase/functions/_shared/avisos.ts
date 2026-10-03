@@ -75,3 +75,16 @@ export async function resolverAviso(rpc: Rpc, tipo: string, chave?: string): Pro
     return 0
   }
 }
+
+/**
+ * Fecha os avisos abertos do tipo cuja chave NÃO está na lista: quem ainda tem o problema continua com o aviso,
+ * quem não tem mais, perde. Lista vazia fecha todos do tipo. Devolve quantos fechou.
+ */
+export async function resolverAvisosExceto(rpc: Rpc, tipo: string, chavesQueContinuam: string[]): Promise<number> {
+  try {
+    return (await rpc<number>('aviso_resolver_exceto', { p_tipo: tipo, p_chaves: chavesQueContinuam })) ?? 0
+  } catch (e) {
+    console.error('aviso: não consegui resolver o resto', tipo, e instanceof Error ? e.message : e)
+    return 0
+  }
+}
