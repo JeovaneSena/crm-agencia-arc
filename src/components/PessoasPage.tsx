@@ -1,7 +1,7 @@
 import ModalPortal from './ModalPortal'
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Search, Download, FileText, Users, UserCheck, UserPlus, X, ArrowRight, CalendarPlus, Filter } from 'lucide-react'
+import { Search, Download, FileText, Users, UserCheck, UserPlus, X, ArrowRight, CalendarPlus, Filter, Upload } from 'lucide-react'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { supabase } from '../lib/supabase'
@@ -15,6 +15,7 @@ import CampoTelefone from './CampoTelefone'
 import AvisoBaixaConsulta from './AvisoBaixaConsulta'
 import FiltroPeriodo from './FiltroPeriodo'
 import EtiquetaChip from './EtiquetaChip'
+import ImportarContatos from './ImportarContatos'
 import { useEtiquetas } from '../lib/etiquetas'
 import { contatosComEtiquetas } from '../lib/etiquetasRegras'
 import {
@@ -629,6 +630,7 @@ export default function PessoasPage({ mode }: { mode: PessoasMode }) {
   const { etiquetas, porContato } = useEtiquetas()
   const [etiquetaFiltro, setEtiquetaFiltro] = useState('')
   const [showNewLead, setShowNewLead] = useState(false)
+  const [importando, setImportando] = useState(false)
 
   /* Limpar a etapa tira só ela da URL — o período escolhido continua valendo,
      que é o que a pessoa esperaria de um "✕" na etiqueta da etapa. */
@@ -792,6 +794,13 @@ export default function PessoasPage({ mode }: { mode: PessoasMode }) {
           </button>
         </div>
 
+        {mode === 'leads' && <button
+          onClick={() => setImportando(true)}
+          style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 16px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', fontSize: 13.5, fontWeight: 600, color: 'var(--text)', fontFamily: "var(--font-body)" }}
+        >
+          <Upload size={16} /> Importar planilha
+        </button>}
+
         <button
           onClick={() => setShowNewLead(true)}
           style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 18px', borderRadius: 10, border: 'none', background: 'var(--action)', cursor: 'pointer', fontSize: 13.5, fontWeight: 600, color: 'var(--on-action)', fontFamily: "var(--font-body)", flexShrink: 0, transition: 'background 0.15s' }}
@@ -953,6 +962,8 @@ export default function PessoasPage({ mode }: { mode: PessoasMode }) {
           </div>
         )}
       </div>
+
+      {importando && <ImportarContatos onFechar={() => setImportando(false)} onImportado={() => void recarregarPessoas()} />}
 
       {showNewLead && (
         <NewLeadModal

@@ -107,6 +107,48 @@ Deno.test('etiquetas: filtrar exige todas as escolhidas', () => {
   eq([...contatosComEtiquetas(m, [], ['a', 'b', 'c'])], ['a', 'b', 'c'])
 })
 
+// ---------- importar planilha ----------
+import { detectarColunas, lerCSV, normalizarNumero, prepararLinhas } from '../../src/lib/importacao.ts'
+Deno.test('importação: lê CSV com ; ou ,, aspas, BOM, CRLF e linhas vazias', () => {
+  eq(lerCSV('﻿Nome;Telefone\r\n"Silva; João";(11) 98765-4321\r\n\r\nAna;11987654322'), [['Nome', 'Telefone'], ['Silva; João', '(11) 98765-4321'], ['Ana', '11987654322']])
+  eq(lerCSV('nome,email\n"Ele disse ""oi""",a@b.co'), [['nome', 'email'], ['Ele disse "oi"', 'a@b.co']])
+  eq(lerCSV('a,b\n1,2'), [['a', 'b'], ['1', '2']])
+  eq(lerCSV(''), [])
+})
+Deno.test('importação: reconhece colunas pelo título, sem acento nem caixa, sem repetir coluna', () => {
+  eq(detectarColunas(['Nome Completo', 'E-mail', 'Celular', 'Empresa']), { nome: 0, whatsapp: 2, empresa: 3, email: 1 })
+  eq(detectarColunas(['Cliente', 'Telefone', 'Razão Social']), { nome: 0, whatsapp: 1, empresa: 2, email: null })
+  eq(detectarColunas(['x', 'y']), { nome: null, whatsapp: null, empresa: null, email: null })
+})
+Deno.test('importação: normaliza telefone brasileiro e recusa o que não dá para usar', () => {
+  eq(normalizarNumero('(11) 98765-4321'), { ok: true, numero: '5511987654321' })
+  eq(normalizarNumero('+55 11 98765-4321'), { ok: true, numero: '5511987654321' })
+  eq(normalizarNumero('011 3333-4444'), { ok: true, numero: '551133334444' })
+  eq(normalizarNumero('98765-4321'), { ok: false, motivo: 'telefone sem DDD' })
+  eq(normalizarNumero('123'), { ok: false, motivo: 'telefone sem DDD' })
+  eq(normalizarNumero(''), { ok: false, motivo: 'sem telefone' })
+  eq(normalizarNumero('1234567890123456789'), { ok: false, motivo: 'telefone com tamanho inválido' })
+})
+Deno.test('importação: monta as linhas, explica as recusadas e junta os repetidos', () => {
+  const mapa = { nome: 0, whatsapp: 1, empresa: null, email: 2 } as const
+  const r = prepararLinhas([
+    ['Ana', '(11) 98765-4321', 'ANA@EXEMPLO.COM'],
+    ['Ana de novo', '11987654321', ''],
+    ['Bia', '98765', ''],
+    ['', '21 99999-0000', ''],
+    ['Caio', '11 97777-0000', 'sem-arroba'],
+  ], mapa)
+  eq(r.prontas, [{ nome: 'Ana', whatsapp: '5511987654321', empresa: null, email: 'ana@exemplo.com' }, { nome: null, whatsapp: '5521999990000', empresa: null, email: null }])
+  eq(r.problemas, [{ linha: 4, motivo: 'telefone sem DDD' }, { linha: 6, motivo: 'e-mail inválido' }])
+  eq(r.repetidasNoArquivo, 1)
+  eq(prepararLinhas([['x']], { nome: 0, whatsapp: null, empresa: null, email: null }).prontas, [], 'sem coluna de telefone não importa nada')
+})
+Deno.test('importação: o limite de 500 linhas é avisado, não ignorado em silêncio', () => {
+  const muitas = Array.from({ length: 503 }, (_, i) => ['N' + i, String(11900000000 + i)])
+  const r = prepararLinhas(muitas, { nome: 0, whatsapp: 1, empresa: null, email: null })
+  eq(r.prontas.length, 500); eq(r.excedeLimite, true)
+})
+
 // ---------- anexos ----------
 import { problemaDoAnexo, tamanhoLegivel } from '../../src/lib/anexos.ts'
 Deno.test('anexos: a tela recusa cedo o que a função recusaria (tipo, vazio, 5 MB de imagem, 16 MB)', () => {

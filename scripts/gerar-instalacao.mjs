@@ -45,14 +45,14 @@ const MODULOS = {
   },
 }
 const NUCLEO = {
-  migracoes: ['0001_base', '0002_nucleo_configuravel', '0003_contatos_proxima_reuniao', '0004_dashboard', '0005_funcoes_so_equipe', '0006_storage_perfil_logo', '0011_central_de_avisos', '0017_etiquetas', '0018_responsavel_e_lote'],
+  migracoes: ['0001_base', '0002_nucleo_configuravel', '0003_contatos_proxima_reuniao', '0004_dashboard', '0005_funcoes_so_equipe', '0006_storage_perfil_logo', '0011_central_de_avisos', '0017_etiquetas', '0018_responsavel_e_lote', '0019_importar_contatos'],
   funcoes: ['equipe'],
   compartilhados: ['db.ts', 'equipe-nucleo.ts', 'equipe_nucleo_test.ts', 'avisos.ts', 'avisos_test.ts'],
   arquivos: ['index.html', 'eslint.config.js', 'tsconfig.json', 'tsconfig.app.json', 'tsconfig.node.json', 'vite.config.ts', 'vercel.json', 'package-lock.json', '.gitignore'],
   pastas: ['src', 'public', 'supabase/email-templates'],
   scripts: ['scripts/base-database.mjs', 'scripts/base-migrar.mjs', 'scripts/preflight-base.mjs', 'scripts/browser-check.mjs', 'scripts/auth-config.mjs', 'scripts/ensaio-local.mjs', 'scripts/lib/proibidos.mjs', 'scripts/lib/supabase-stub.sql', 'scripts/testes/lib_test.ts'],
   npm: ['dev', 'build', 'lint', 'preview', 'preflight', 'test:db:local', 'test:lib', 'test:avisos', 'auth:config', 'auth:aplicar', 'test:ui',
-    ...['base', 'nucleo', 'contatos', 'dashboard', 'funcoes', 'storage', 'avisos', 'etiquetas', 'responsavel'].flatMap(n => n === 'base'
+    ...['base', 'nucleo', 'contatos', 'dashboard', 'funcoes', 'storage', 'avisos', 'etiquetas', 'responsavel', 'importar'].flatMap(n => n === 'base'
       ? ['test:base:db:rehearsal', 'test:base:db:apply', 'test:base:db:verify']
       : [`test:${n}:db:rehearsal`, `test:${n}:db:apply`])],
 }
