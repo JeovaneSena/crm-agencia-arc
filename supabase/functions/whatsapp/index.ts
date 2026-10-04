@@ -22,6 +22,7 @@ import { apagar, apagarMidias, assinarMidia, atualizar, inserir, listarMidias, r
 import { UAZAPI } from '../_shared/uazapi.ts'
 import { avaliarWebhook } from '../_shared/whatsapp.ts'
 import { usuarioDaSessao } from '../_shared/sessao.ts'
+import { classificarOptOut } from '../_shared/optout.ts'
 import { aposReceber, camposDoContatoNovo, rascunhoDaIA } from '../_shared/gancho.ts'
 import { vigiar, type DepsVigia } from '../_shared/vigia.ts'
 import { classificarAnexo } from '../_shared/anexos.ts'
@@ -82,6 +83,8 @@ async function rotaWebhook(req: Request): Promise<Response> {
 
   const recebida = lido.mensagem
   const contatoId = await acharOuCriarContato(recebida.whatsapp)
+  const parada = classificarOptOut(recebida.texto)
+  if (parada !== 'nenhum') await rpc('automacao_bloquear', { p_contato: contatoId, p_marketing: parada === 'pedido' })
   const criadas = await inserir<{ id: string }>('mensagens_whatsapp', {
     contato_id: contatoId,
     autor: 'cliente',

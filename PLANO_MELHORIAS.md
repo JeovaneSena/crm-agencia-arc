@@ -34,10 +34,8 @@ Data: 03/10/2026. Referência: repositório público `melgarafael/DeskcommCRM`, 
     pelo WhatsApp sem conversão); (3) mini-conversa flutuante e atalhos de teclado não foram feitos; (4) a mensagem
     "SAIR" pela uazapi com o assistente desligado ainda não revoga o marketing (limite da fase 1).
 
-- **Fase 3 (nenhum lead morre em silêncio): em andamento, começou em 03/10/2026.** Tarefas e radar estão publicados
-  (`89b2484`, `a2ac385`); a volta automática ao assistente está pronta, **ainda sem commit** (alterações no diretório de
-  trabalho). Ordem: tarefas, radar, volta automática (feitos), recuperação de falta, lembretes de reunião e follow-up v1
-  (os três últimos dependem do canal de envio: decisão pendente 2).
+- **Fase 3 (nenhum lead morre em silêncio): implementação local concluída em 04/10/2026; aceite real pendente.** Tarefas e radar estão publicados
+  (`89b2484`, `a2ac385`); a volta automática ao assistente foi registrada no commit `cfce351`. Ordem: tarefas, radar, volta automática (feitos), recuperação de falta, lembretes de reunião e follow-up v1 (implementados localmente; sem publicação remota).
   - **Tarefas (0020): feitas.** Tela Tarefas, seção na ficha, tarefa concluída na linha do tempo, aviso "um por pessoa" no
     vigia (`aviso_resolver_exceto`). Ensaiado em PGlite (com troca de regra de propósito para provar que o ensaio falha),
     testes Deno e de tela, instalação gerada só com o núcleo e com todos os módulos. **Nada foi aplicado em Supabase real.**
@@ -60,6 +58,22 @@ Data: 03/10/2026. Referência: repositório público `melgarafael/DeskcommCRM`, 
     Meta com modelo aprovado e janela de 24 h), não só um.
   - Corrigido de passagem: `browser-check` falhava em `--assistente` e `--campanhas` por um teste que ignorava que esses
     módulos ligam as conversas (já falhava no commit `c2cca6a`).
+
+  - **Recuperação de falta (0023): implementada.** Uma tarefa por reunião, prazo de duas horas,
+    responsável ativo ou autor da baixa; outra reunião futura conclui a recuperação. Núcleo e gerador incluídos.
+  - **Lembretes e follow-up v1 (0024): implementados localmente.** Tela Automações (gestor), regras desligadas
+    por padrão, autorização por contato, uazapi com texto e Meta com modelo aprovado. Modelos MARKETING
+    exigem também consentimento de campanhas ativo. Follow-up por entrada na etapa; para com resposta,
+    equipe, mudança de etapa ou reunião futura. Fila com token, conferência final e chamadas incertas sem
+    repetição automática. Worker e gerador incluídos. Ver `docs/AUTOMACOES.md`.
+  - Corrigido o pedido de parada pela uazapi com assistente desligado: os dois webhooks usam a mesma
+    classificação e bloqueiam automações; pedido inequívoco revoga também marketing quando instalado.
+  - **Aceite externo pendente:** o dono informou em 04/10 que ainda não há os dois projetos Supabase
+    novos/vazios para testes. Nenhuma migração, função ou agendador foi aplicado remotamente nesta etapa.
+    Faltam testes reais uazapi/Meta e as duas instalações vazias previstas no plano da base.
+  - **Revisão de fechamento (04/10):** roteiro de aceite e casos obrigatórios em
+    `docs/ACEITE_FASE_3.md`. Variáveis vazias bloqueiam mensagens também quando inseridas
+    em um texto maior. A fase permanece com aceite real pendente até os ambientes existirem.
 
 ## O que foi revisado
 
@@ -283,7 +297,7 @@ adiar conversa, anexos e áudio no compositor, transferir conversa, responsável
 negócio, rascunho da IA, ações em lote, importação de planilha e a tela de modelos da
 Meta (a pendência que falta para fechar o módulo campanhas).
 
-**Fase 3 — Nenhum lead morre em silêncio (EM ANDAMENTO).** Radar, tarefas e volta automática ao assistente (feitos);
+**Fase 3 — Nenhum lead morre em silêncio (IMPLEMENTADA LOCALMENTE; ACEITE REAL PENDENTE).** Radar, tarefas e volta automática ao assistente (feitos);
 lembretes de reunião (portar a 0032), follow-up v1 e recuperação de falta.
 
 **Fase 4 — De onde vem o cliente.** Captação de formulários com UTM, código `[ref:]`

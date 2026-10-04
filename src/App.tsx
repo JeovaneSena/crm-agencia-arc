@@ -24,6 +24,7 @@ import Usuarios from './pages/Usuarios'
 import Avisos from './pages/Avisos'
 import Tarefas from './pages/Tarefas'
 import Radar from './pages/Radar'
+import Automacoes from './pages/Automacoes'
 import { moduloAtivo } from './lib/modulos'
 
 export default function App() {
@@ -58,6 +59,7 @@ export default function App() {
             <Route element={<RotaDeGestor />}>
               <Route path="/usuarios" element={<Usuarios />} />
               {moduloAtivo('assistente') && <Route path="/assistente-ia" element={<Assistente />} />}
+              {moduloAtivo('conversas') && <Route path="/automacoes" element={<Automacoes />} />}
               <Route path="/configuracoes" element={<Configuracoes />} />
             </Route>
             <Route path="/leads" element={<Leads />} />

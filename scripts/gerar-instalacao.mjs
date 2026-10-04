@@ -15,11 +15,11 @@ const base = resolve(import.meta.dirname, '..')
 // Módulos que já existem na base.
 const MODULOS = {
   conversas: {
-    migracoes: ['0007_modulo_conversas', '0012_retencao_de_midia', '0013_respostas_rapidas', '0014_notas_internas', '0015_assumir_e_transferir', '0016_adiar_conversa'],
-    funcoes: ['whatsapp'],
-    compartilhados: ['uazapi.ts', 'whatsapp.ts', 'gancho.ts', 'sessao.ts', 'conversas_test.ts', 'optout.ts', 'optout_test.ts', 'vigia.ts', 'vigia_test.ts', 'anexos.ts', 'anexos_test.ts'],
-    arquivos: ['scripts/vigia-worker.mjs'],
-    scripts: ['test:conversas', 'test:optout', 'test:vigia', 'test:anexos', 'test:conversas:db:rehearsal', 'test:conversas:db:apply', 'test:retencao:db:rehearsal', 'test:retencao:db:apply', 'test:respostas:db:rehearsal', 'test:respostas:db:apply', 'test:notas:db:rehearsal', 'test:notas:db:apply', 'test:conversa-dono:db:rehearsal', 'test:conversa-dono:db:apply', 'test:adiar:db:rehearsal', 'test:adiar:db:apply', 'test:ui:conversas'],
+    migracoes: ['0007_modulo_conversas', '0012_retencao_de_midia', '0013_respostas_rapidas', '0014_notas_internas', '0015_assumir_e_transferir', '0016_adiar_conversa', '0024_automacoes_de_envio'],
+    funcoes: ['whatsapp', 'automacoes'],
+    compartilhados: ['uazapi.ts', 'whatsapp.ts', 'gancho.ts', 'sessao.ts', 'conversas_test.ts', 'optout.ts', 'optout_test.ts', 'vigia.ts', 'vigia_test.ts', 'automacoes.ts', 'automacoes_test.ts', 'meta-api.ts', 'meta-protocolo.ts', 'anexos.ts', 'anexos_test.ts'],
+    arquivos: ['scripts/vigia-worker.mjs', 'scripts/automacoes-worker.mjs'],
+    scripts: ['test:automacoes', 'test:automacoes:db:rehearsal', 'test:automacoes:db:apply', 'test:conversas', 'test:optout', 'test:vigia', 'test:anexos', 'test:conversas:db:rehearsal', 'test:conversas:db:apply', 'test:retencao:db:rehearsal', 'test:retencao:db:apply', 'test:respostas:db:rehearsal', 'test:respostas:db:apply', 'test:notas:db:rehearsal', 'test:notas:db:apply', 'test:conversa-dono:db:rehearsal', 'test:conversa-dono:db:apply', 'test:adiar:db:rehearsal', 'test:adiar:db:apply', 'test:ui:conversas'],
   },
   assistente: {
     requer: ['conversas'],
@@ -45,14 +45,14 @@ const MODULOS = {
   },
 }
 const NUCLEO = {
-  migracoes: ['0001_base', '0002_nucleo_configuravel', '0003_contatos_proxima_reuniao', '0004_dashboard', '0005_funcoes_so_equipe', '0006_storage_perfil_logo', '0011_central_de_avisos', '0017_etiquetas', '0018_responsavel_e_lote', '0019_importar_contatos', '0020_tarefas', '0021_radar'],
+  migracoes: ['0001_base', '0002_nucleo_configuravel', '0003_contatos_proxima_reuniao', '0004_dashboard', '0005_funcoes_so_equipe', '0006_storage_perfil_logo', '0011_central_de_avisos', '0017_etiquetas', '0018_responsavel_e_lote', '0019_importar_contatos', '0020_tarefas', '0021_radar', '0023_recuperacao_de_falta'],
   funcoes: ['equipe'],
   compartilhados: ['db.ts', 'equipe-nucleo.ts', 'equipe_nucleo_test.ts', 'avisos.ts', 'avisos_test.ts'],
   arquivos: ['index.html', 'eslint.config.js', 'tsconfig.json', 'tsconfig.app.json', 'tsconfig.node.json', 'vite.config.ts', 'vercel.json', 'package-lock.json', '.gitignore'],
   pastas: ['src', 'public', 'supabase/email-templates'],
   scripts: ['scripts/base-database.mjs', 'scripts/base-migrar.mjs', 'scripts/preflight-base.mjs', 'scripts/browser-check.mjs', 'scripts/auth-config.mjs', 'scripts/ensaio-local.mjs', 'scripts/lib/proibidos.mjs', 'scripts/lib/supabase-stub.sql', 'scripts/testes/lib_test.ts'],
   npm: ['dev', 'build', 'lint', 'preview', 'preflight', 'test:db:local', 'test:lib', 'test:avisos', 'auth:config', 'auth:aplicar', 'test:ui',
-    ...['base', 'nucleo', 'contatos', 'dashboard', 'funcoes', 'storage', 'avisos', 'etiquetas', 'responsavel', 'importar', 'tarefas', 'radar'].flatMap(n => n === 'base'
+    ...['base', 'nucleo', 'contatos', 'dashboard', 'funcoes', 'storage', 'avisos', 'etiquetas', 'responsavel', 'importar', 'tarefas', 'radar', 'recuperacao'].flatMap(n => n === 'base'
       ? ['test:base:db:rehearsal', 'test:base:db:apply', 'test:base:db:verify']
       : [`test:${n}:db:rehearsal`, `test:${n}:db:apply`])],
 }
@@ -164,6 +164,7 @@ try {
   const linhasFuncoes = funcoes.map(f => `supabase functions deploy ${f} --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt`).join('\n')
   const extras = [
     modulos.includes('conversas') && '- Conversas: configure `WEBHOOK_SEGREDO`, `UAZAPI_API_URL` e `UAZAPI_TOKEN` nos secrets das Edge Functions; configure o webhook da uazapi para `https://<ref>.supabase.co/functions/v1/whatsapp` e teste conexão, recebimento e envio. Configure também `VIGIA_SEGREDO` (24+ caracteres) e agende `node scripts/vigia-worker.mjs` a cada 5 minutos, com `SUPABASE_URL` e `VIGIA_SEGREDO` no ambiente do agendador: é ele que avisa na Central quando o WhatsApp cai ou uma mensagem não sai; sem o agendamento esses avisos não aparecem.',
+    modulos.includes('conversas') && '- Automações: configure `AUTOMACOES_SEGREDO` (24+ caracteres) nas Edge Functions e agende `node scripts/automacoes-worker.mjs` a cada 5 minutos com `SUPABASE_URL` e `AUTOMACOES_SEGREDO`. Na tela Automações, registre a autorização dos contatos, configure os textos/modelos e só então ative as regras. Envios pela Meta exigem o módulo campanhas.',
     modulos.includes('assistente') && '- Assistente: configure `OPENAI_API_KEY` ou `ANTHROPIC_API_KEY` nos secrets. Comece no modo desligado, teste com um número permitido e só depois ative ao vivo.',
     modulos.includes('campanhas') && '- Campanhas: configure `META_ACCESS_TOKEN`, `META_APP_SECRET`, `META_VERIFY_TOKEN`, `META_PHONE_NUMBER_ID`, `META_WABA_ID`, `META_GRAPH_VERSION` e `CAMPANHAS_WORKER_SECRET`. Configure o webhook da Meta em `https://<ref>.supabase.co/functions/v1/campanhas/webhook`. Agende `node scripts/campanhas-worker.mjs` uma vez por minuto com `SUPABASE_URL` e `CAMPANHAS_WORKER_SECRET` no ambiente do agendador; sem esse agendamento a fila não envia.',
   ].filter(Boolean).join('\n')

@@ -12,3 +12,5 @@ Este é o processo para uma instalação gerada pelo CRM Base. O README dentro d
 Para publicar a **base mestre** no GitHub, rode `npm run preflight`, `npm run test:db:local`, `npm run build` e `npm run lint`, confira `git status` e faça revisão dos arquivos rastreados. Mantenha o repositório como base em validação até duas instalações vazias passarem por todo o processo. Publique cada cliente em um repositório separado e sem `.env`, tokens, dumps ou dados de produção.
 
 Para um roteiro iniciante, com pré-requisitos e contas necessárias, veja [COMECANDO.md](COMECANDO.md).
+
+Para lembretes e follow-up, consulte [Automações](AUTOMACOES.md). Em atualizações, aplique a migração 0024 antes de publicar os novos webhooks whatsapp/campanhas. Configure o worker somente na instalação derivada.

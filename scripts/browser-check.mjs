@@ -1,7 +1,6 @@
 // UI smoke tests use isolated mocked API responses. Database invariants are
 // tested separately by agency-check.sql inside a rollback transaction.
 import { chromium } from '@playwright/test'
-import { readFileSync } from 'node:fs'
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import { setTimeout as delay } from 'node:timers/promises'
@@ -10,17 +9,16 @@ const comConversas = process.argv.includes('--conversas')
 const comProjetos = process.argv.includes('--projetos')
 const comAssistente = process.argv.includes('--assistente')
 const comCampanhas = process.argv.includes('--campanhas')
+const supabaseUrl = 'https://crm-base-test.supabase.co'
+const project = 'crm-base-test'
 const modulosLigados = [(comConversas || comAssistente || comCampanhas) && 'conversas', comProjetos && 'projetos', comAssistente && 'assistente', comCampanhas && 'campanhas'].filter(Boolean).join(',')
 // Um servidor sobrando de um teste anterior responderia no lugar do nosso, com outros módulos ligados.
 if (await fetch(base).then(() => true, () => false)) throw Error('A porta 5187 já está em uso (servidor de um teste anterior?). Encerre-o antes de rodar.')
-const server = spawn(process.execPath, ['node_modules/vite/bin/vite.js', '--host', '127.0.0.1', '--port', '5187', '--strictPort'], { stdio: 'ignore', env: { ...process.env, VITE_MODULOS: modulosLigados } })
+const server = spawn(process.execPath, ['node_modules/vite/bin/vite.js', '--host', '127.0.0.1', '--port', '5187', '--strictPort'], { stdio: 'ignore', env: { ...process.env, VITE_MODULOS: modulosLigados, VITE_SUPABASE_URL: supabaseUrl, VITE_SUPABASE_ANON_KEY: 'chave-ficticia-para-testes' } })
 await Promise.race([
  (async () => { for (let i=0;i<80;i++) { try { if ((await fetch(base)).ok) return } catch {} await delay(100) } throw Error('Servidor de teste não iniciou') })(),
  new Promise((_,reject) => server.once('exit',code => reject(Error('Servidor encerrou: '+code))))
 ]).catch(e => { server.kill(); throw e })
-const env = readFileSync('.env','utf8')
-const supabaseUrl = env.match(/^VITE_SUPABASE_URL=(.+)$/m)[1].trim().replace(/^['"]|['"]$/g,'')
-const project = new URL(supabaseUrl).hostname.split('.')[0]
 const user = { id: '00000000-0000-4000-8000-000000000001', email: 'test@example.invalid', role: 'authenticated', app_metadata: {}, user_metadata: {} }
 const session = { access_token: 'test.token.signature', refresh_token: 'test-refresh', expires_at: Math.floor(Date.now()/1000)+3600, expires_in:3600, token_type:'bearer', user }
 let opportunities = []
@@ -302,6 +300,54 @@ try {
  const desligados=[...(comCampanhas?[]:['Campanhas']),...(comAssistente?[]:['Assistente comercial de IA']),...(comProjetos?[]:['Projetos']),...((comConversas||comAssistente||comCampanhas)?[]:['Conversas'])]
  for(const modulo of desligados)
   assert.equal(await page.getByRole('link',{name:modulo,exact:true}).count(),0,`Módulo ${modulo} apareceu sem estar ligado`)
+ if(modulosLigados.includes('conversas')) {
+  let regrasAuto=[],permissoesAuto=[],gravadasAuto=[]
+  await context.route('**/rest/v1/contatos_dados*',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify([lead])}))
+  await context.route('**/rest/v1/etapas_funil*',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify([{chave:'proposta',rotulo:'Proposta',tipo:'aberta',ordem:1}])}))
+  await context.route('**/rest/v1/automacao_regras*',async r=>{
+   const method=r.request().method()
+   if(method==='POST'){const d=r.request().postDataJSON();gravadasAuto.push(d);regrasAuto.push({...d,id:'auto-1',created_at:now})}
+   if(method==='PATCH'){const d=r.request().postDataJSON();regrasAuto=regrasAuto.map(x=>({...x,...d}))}
+   await r.fulfill({status:200,contentType:'application/json',body:JSON.stringify(method==='GET'?regrasAuto:[])})
+  })
+  await context.route('**/rest/v1/automacao_permissoes*',async r=>{
+   if(r.request().method()==='POST'){const d=r.request().postDataJSON();permissoesAuto=[d]}
+   await r.fulfill({status:200,contentType:'application/json',body:JSON.stringify(r.request().method()==='GET'?permissoesAuto:[])})
+  })
+  await context.route('**/rest/v1/automacao_envios*',r=>r.fulfill({status:200,contentType:'application/json',body:'[]'}))
+  await page.goto(base+'/automacoes')
+  await page.getByRole('heading',{name:'Automações',exact:true}).waitFor()
+  await page.getByLabel('Nome da regra').fill('Lembrar reunião')
+  await page.getByLabel('Minutos antes da reunião').fill('180')
+  await page.getByRole('button',{name:'Salvar regra desligada'}).click()
+  await page.getByRole('button',{name:'Ativar Lembrar reunião'}).waitFor()
+  assert.equal(gravadasAuto[0].ativa,false,'regra nasceu ativa')
+  assert.equal(gravadasAuto[0].minutos,180)
+  await page.getByRole('button',{name:'Ativar Lembrar reunião'}).click()
+  await page.getByRole('button',{name:'Desligar Lembrar reunião'}).waitFor()
+  await page.getByLabel('Contato',{exact:true}).selectOption(lead.id)
+  await page.getByLabel('Origem da autorização').fill('Autorizou pelo WhatsApp hoje')
+  await page.getByLabel('Autoriza lembretes e follow-up').check()
+  await page.getByRole('button',{name:'Registrar preferência'}).click()
+  await page.getByText('1 contato(s) autorizado(s).',{exact:true}).waitFor()
+  assert.equal(permissoesAuto[0].contato_id,lead.id);assert.equal(permissoesAuto[0].autorizado,true)
+  await page.getByLabel('Tipo de automação').selectOption('followup')
+  await page.getByLabel('Minutos após entrar na etapa').waitFor()
+  assert.equal(await page.getByLabel('Etapa',{exact:true}).count(),1)
+  if(comCampanhas){
+   await page.getByLabel('Canal de envio').selectOption('meta')
+   await page.getByLabel('Nome do modelo aprovado').waitFor()
+   await page.getByLabel('Parâmetros do modelo').fill('JSON inválido')
+   await page.getByLabel('Nome da regra').fill('Modelo inválido')
+   await page.getByLabel('Nome do modelo aprovado').fill('aviso_reuniao')
+   await page.getByRole('button',{name:'Salvar regra desligada'}).click()
+   await page.getByRole('alert').getByText(/Parâmetros: use um objeto/).waitFor()
+   assert.equal(gravadasAuto.length,1,'JSON inválido foi salvo')
+  }
+  await context.unroute('**/rest/v1/contatos_dados*')
+  await context.unroute('**/rest/v1/etapas_funil*')
+  console.log('PASS automações: regra desligada, ativação explícita, autorização e campos de follow-up')
+ }
  if(comConversas){
   // Módulo conversas: lista, abrir a conversa, mensagens do cliente e da equipe, envio.
   await page.goto(base+'/conversas')

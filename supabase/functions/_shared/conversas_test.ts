@@ -292,3 +292,18 @@ Deno.test('anexo: conversa de outra pessoa é recusada; falha da uazapi deixa a 
     assert(chamadas.filter((x) => x.url.includes('/send/media')).length === 1, 'tentou mais de uma vez')
   } finally { restaurar() }
 })
+
+Deno.test('parada pela uazapi bloqueia automações mesmo sem IA e em webhook duplicado', async () => {
+ falso()
+ respostas = (u) => {
+  if(u.pathname.endsWith('/contatos_dados')) return [{id:ID}]
+  if(u.pathname.endsWith('/mensagens_whatsapp')) return []
+  return null
+ }
+ try {
+  const r=await post('', {...mensagemUazapi,message:{...mensagemUazapi.message,text:'SAIR'}}, {'x-webhook-segredo':'segredo-de-teste'})
+  assert(r.status===200)
+  const b=chamadas.find(c=>c.url.endsWith('/rpc/automacao_bloquear'))
+  assert(b && (b.corpo as Record<string,unknown>).p_marketing===true,'não bloqueou no servidor antes de ignorar duplicada')
+ } finally {restaurar()}
+})

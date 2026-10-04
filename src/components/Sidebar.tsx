@@ -51,6 +51,7 @@ const NAV_GROUPS: { label: string; items: ItemNav[] }[] = [
       { to: '/equipe', label: 'Equipe', icon: BriefcaseBusiness },
       { to: '/servicos', label: 'Serviços', icon: ClipboardList },
       { to: '/usuarios', label: 'Usuários', icon: UsersRound, gestor: true },
+      { to: '/automacoes', label: 'Automações', icon: Bell, gestor: true, modulo: 'conversas' },
       { to: '/configuracoes', label: 'Configurações', icon: Settings, gestor: true },
     ],
   },

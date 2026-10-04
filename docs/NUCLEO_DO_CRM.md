@@ -63,3 +63,7 @@ transferiu ou devolveu).
 ## Testes
 `npm run test:lib` (regras de etiquetas, importação, anexos, adiar, respostas rápidas e linha do tempo) e os de banco
 `test:etiquetas|responsavel|importar|tarefas|radar:db:rehearsal` (e `:apply` num projeto descartável).
+
+## Recuperação de faltas
+
+A migração 0023 cria uma tarefa ao registrar uma falta e conclui a recuperação quando houver outra reunião futura. Ver [automações](AUTOMACOES.md) para regras e limites.

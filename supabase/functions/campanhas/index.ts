@@ -15,6 +15,7 @@
  * Secrets: META_ACCESS_TOKEN, META_APP_SECRET, META_VERIFY_TOKEN, META_PHONE_NUMBER_ID, META_WABA_ID,
  * META_GRAPH_VERSION (ex.: v21.0) e CAMPANHAS_WORKER_SECRET.
  */
+import { classificarOptOut } from '../_shared/optout.ts'
 import { inserir, rpc, selecionar } from '../_shared/db.ts'
 import { usuarioDaSessao } from '../_shared/sessao.ts'
 import { apagarModeloMeta, criarModeloMeta, enviarModelo, ErroMeta, estadoDoNumero, metaConfig, metaConfigurada, modelosMeta } from '../_shared/meta-api.ts'
@@ -74,6 +75,8 @@ function depsDoWebhook(): DepsWebhook {
       const achar = async () => (await selecionar<{ id: string }>(`contatos_dados?select=id&whatsapp=eq.${encodeURIComponent(whatsapp)}&limit=1`))[0]?.id
       const contato = await achar() ?? (await inserir<{ id: string }>('contatos_dados', { whatsapp, status: 'novo_lead' }, true, 'whatsapp'))[0]?.id ?? await achar()
       if (!contato) throw new Error('contato não criado')
+      const parada = classificarOptOut(texto)
+      if (parada !== 'nenhum') await rpc('automacao_bloquear', { p_contato: contato, p_marketing: parada === 'pedido' })
       await inserir('mensagens_whatsapp', {
         contato_id: contato, autor: 'cliente', tipo: ['texto', 'audio', 'imagem', 'video', 'documento'].includes(tipo) ? tipo : 'texto',
         conteudo: texto, id_externo: idExterno, provedor: 'meta', lida: false,
