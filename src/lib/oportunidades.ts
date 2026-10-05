@@ -7,6 +7,8 @@ export interface Oportunidade {
   fechado_em: string | null; cancelado_em: string | null; motivo_cancelamento: string | null
   created_at: string; updated_at: string
   /** Quem responde pela venda (migração 0018). Nulo = sem responsável. */
+  motivo_perda: string | null; retomar_em: string | null
+  campos_custom: import('./camposRegras').ValoresCampos
   responsavel_id: string | null
   contato: { nome: string | null; empresa: string | null; whatsapp: string | null } | null
 }
@@ -24,7 +26,7 @@ export async function listarOportunidades(leadId?: string) {
 }
 export function erroOportunidade(error: { message?: string } | null) {
   if (!error) return 'A oportunidade mudou em outra sessão. Atualize e tente novamente.'
-  if (/Informe o valor|Escolha serviços|Venda encerrada|Para cancelar|nova compra/i.test(error.message ?? '')) return error.message!
+  if (/Informe o valor|Escolha serviços|Venda encerrada|Para cancelar|nova compra|Campos obrigatórios|Valor inválido|motivo de perda|quando retomar|Campo arquivado/i.test(error.message ?? '')) return error.message!
   return 'Não foi possível salvar a oportunidade. Atualize e tente novamente.'
 }
 

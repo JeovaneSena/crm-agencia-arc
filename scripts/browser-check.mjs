@@ -8,6 +8,7 @@ const base = 'http://127.0.0.1:5187'
 const comConversas = process.argv.includes('--conversas')
 const comProjetos = process.argv.includes('--projetos')
 const comCasos=process.argv.includes('--casos')
+const comNicho=process.argv.includes('--nicho')
 const comMelhorias=process.argv.includes('--melhorias')
 const comAssistente = process.argv.includes('--assistente')||comCasos||comMelhorias
 const comCampanhas = process.argv.includes('--campanhas')
@@ -47,6 +48,10 @@ let retencao=null
 let dono=null
 let adiada=null
 const abertasMock=[{...opportunity,id:'opp-a',nome:'Site institucional',status:'proposta',valor_proposta:5000,servicos_contratados:['Serviço A'],fechado_em:null,responsavel_id:'00000000-0000-4000-8000-000000000001',contato:{nome:'Contato de teste',empresa:'Empresa Teste',whatsapp:'5511999999999'}},{...opportunity,id:'opp-b',nome:'Tráfego pago',status:'negociacao',valor_proposta:2000,servicos_contratados:[],fechado_em:null,responsavel_id:null,contato:{nome:'Contato de teste',empresa:'Empresa Teste',whatsapp:'5511999999999'}}]
+let camposNicho=comNicho?[{chave:'orcamento',rotulo:'Orçamento disponível',entidade:'contato',tipo:'numero',opcoes:[],obrigatorio_em:['proposta'],ativo:true,versao:1},{chave:'aceite',rotulo:'Aceite informado',entidade:'oportunidade',tipo:'booleano',opcoes:[],obrigatorio_em:['proposta'],ativo:true,versao:1}]:[]
+let motivosNicho=[{chave:'sem_orcamento',rotulo:'Sem orçamento',exige_retomada:false,ativo:true,versao:1}]
+let contatoCampos={campos_custom:{},campos_versao:1}
+let preparacaoNicho={empresa:true,catalogo:true,horarios:true,funil:false,concluida_em:null}
 const ETQ=[{id:'e1',nome:'Quente',cor:'danger'},{id:'e2',nome:'Indicação',cor:'info'}]
 let paresEtq=[{contato_id:'00000000-0000-4000-8000-000000000002',etiqueta_id:'e1'}]
 let avisos=[{id:'av1',tipo:'conexao_caida',gravidade:'critico',titulo:'WhatsApp desconectado',detalhe:'Reconecte o número para voltar a receber mensagens.',rota:'/configuracoes',contato_id:null,somente_gestor:true,ocorrencias:3,criado_em:new Date().toISOString(),ultima_em:new Date().toISOString(),resolvido_em:null,resolucao:null},{id:'av2',tipo:'mensagem_presa',gravidade:'atencao',titulo:'Uma mensagem não saiu',detalhe:null,rota:'https://externo.example/phishing',contato_id:'00000000-0000-4000-8000-000000000002',somente_gestor:false,ocorrencias:1,criado_em:new Date().toISOString(),ultima_em:new Date().toISOString(),resolvido_em:null,resolucao:null}]
@@ -77,6 +82,7 @@ let propostasMock=[],testesMelhoria=[]
 let versoesMock=[{id:'00000000-0000-4000-8000-000000000029',conteudo:'',criada_em:now}]
 let ativaMock=versoesMock[0].id
 const tabelas = {
+ campos_personalizados:()=>camposNicho,motivos_perda:()=>motivosNicho,preparacao_crm:()=>comNicho?[{concluida_em:preparacaoNicho.concluida_em}]:[],
  assistente_casos:()=>casosMock,assistente_melhorias:()=>propostasMock,assistente_melhoria_testes:()=>testesMelhoria,assistente_melhoria_versoes:()=>versoesMock,assistente_melhoria_controle:()=>[{versao_id:ativaMock}],
  assistente_tarifas:()=>[{entrada:3,saida:15}],
  captacao_fontes:()=>fontesCaptacao,
@@ -122,6 +128,9 @@ await context.route('**/*',async route=>{
   {...user,nome:'Equipe Teste',email:'gestor@exemplo.test',papel:'gestor',ativo:true,avatar_url:null,profissional_id:null,convidado_em:null,convite_pendente:false,ultimo_acesso_em:now,criado_em:now},
   {id:'00000000-0000-4000-8000-000000000009',nome:'Consultor Convidado',email:'consultor@exemplo.test',papel:'consultor',ativo:true,avatar_url:null,profissional_id:null,convidado_em:now,convite_pendente:true,ultimo_acesso_em:null,criado_em:now}]}
  else if(url.pathname.endsWith('/rpc/assistente_consumo_resumo'))data={gasto:0.5,reservado:0.1,chamadas:1}
+ else if(table==='contatos_dados'&&url.searchParams.get('select')==='campos_custom,campos_versao') data=[contatoCampos]
+ else if(table==='campos_personalizados') data=camposNicho.filter(c=>!url.searchParams.get('entidade')||url.searchParams.get('entidade')==='eq.'+c.entidade)
+ else if(table==='preparacao_status')data=preparacaoNicho
  else if(tabelas[table]) data=tabelas[table]()
  if(route.request().headers().accept?.includes('vnd.pgrst.object')&&Array.isArray(data)) data=data[0]??null
  await route.fulfill({status:200,contentType:'application/json',headers:{'content-range':'0-0/1'},body:JSON.stringify(data)})
@@ -538,6 +547,61 @@ try {
   await page.getByText(/Recarga confirmada/).waitFor()
   assert.equal(recarga.p_provedor,'openai')
   console.log('PASS assistente: encaminhamento, configuração, orçamento e recarga')
+ }
+
+ if(comNicho){
+  let salvouCampo=null,salvouContato=null,salvouOportunidade=null,salvouMotivo=null,aplicouModelo=null
+  await context.route('**/rest/v1/rpc/campo_definir',async r=>{salvouCampo=r.request().postDataJSON();camposNicho.push({chave:salvouCampo.p_chave,rotulo:salvouCampo.p_rotulo,entidade:salvouCampo.p_entidade,tipo:salvouCampo.p_tipo,opcoes:salvouCampo.p_opcoes,obrigatorio_em:salvouCampo.p_etapas,ativo:true,versao:1});await r.fulfill({status:200,contentType:'application/json',body:''})})
+  await context.route('**/rest/v1/rpc/campos_contato_salvar',async r=>{salvouContato=r.request().postDataJSON();contatoCampos={campos_custom:salvouContato.p_valores,campos_versao:2};await r.fulfill({status:200,contentType:'application/json',body:''})})
+  await context.route('**/rest/v1/rpc/motivo_perda_definir',async r=>{salvouMotivo=r.request().postDataJSON();motivosNicho.push({chave:salvouMotivo.p_chave,rotulo:salvouMotivo.p_rotulo,exige_retomada:salvouMotivo.p_retomada,ativo:true,versao:1});await r.fulfill({status:200,contentType:'application/json',body:''})})
+  await page.goto(base+'/configuracoes?aba=personalizacao')
+  await page.getByLabel('Chave do campo',{exact:true}).fill('prazo')
+  await page.getByLabel('Nome do campo',{exact:true}).fill('Prazo pretendido')
+  await page.getByLabel('Onde preencher',{exact:true}).selectOption('oportunidade')
+  await page.getByLabel('Tipo de campo',{exact:true}).selectOption('data')
+  await page.getByRole('group',{name:'Obrigatório nas etapas',exact:true}).getByLabel('Proposta',{exact:true}).check()
+  await page.getByRole('button',{name:'Salvar campo',exact:true}).click()
+  await page.getByText('Campo salvo.',{exact:true}).waitFor()
+  assert.deepEqual(salvouCampo.p_etapas,['proposta'])
+  await page.getByLabel('Chave do motivo',{exact:true}).fill('prazo_cliente')
+  await page.getByLabel('Nome do motivo',{exact:true}).fill('Prazo do cliente')
+  await page.getByLabel('Exigir data de retomada',{exact:true}).check()
+  await page.getByRole('button',{name:'Salvar motivo',exact:true}).click()
+  await page.getByText('Motivo salvo.',{exact:true}).waitFor()
+  assert(salvouMotivo.p_retomada)
+  await page.goto(base+'/leads/'+lead.id)
+  await page.getByLabel('Orçamento disponível',{exact:true}).fill('0')
+  await page.getByRole('button',{name:'Salvar campos do contato',exact:true}).click()
+  await page.getByText('Campos salvos.',{exact:true}).waitFor()
+  assert(salvouContato.p_valores.orcamento===0&&salvouContato.p_versao===1)
+  await context.route('**/rest/v1/oportunidades?*',async r=>{if(r.request().method()!=='PATCH')return r.fallback();salvouOportunidade=r.request().postDataJSON();await r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({id:'opp-a'})})})
+  await page.goto(base+'/crm')
+  await page.getByRole('button',{name:'Site institucional',exact:true}).click()
+  await page.getByLabel('Aceite informado',{exact:true}).selectOption('false')
+  await page.getByLabel('Prazo pretendido',{exact:true}).fill('2026-11-20')
+  const form=page.getByRole('form',{name:'Oportunidade',exact:true})
+  await form.getByRole('button',{name:'Salvar oportunidade',exact:true}).click()
+  await form.waitFor({state:'hidden'})
+  assert(salvouOportunidade.campos_custom.aceite===false&&salvouOportunidade.campos_custom.prazo==='2026-11-20')
+  await page.getByRole('button',{name:'Site institucional',exact:true}).click()
+  await page.getByLabel('Etapa',{exact:true}).selectOption('perdido')
+  await page.getByLabel('Motivo da perda',{exact:true}).selectOption('prazo_cliente')
+  await page.getByLabel('Retomar em',{exact:true}).fill('2026-12-01')
+  await form.getByRole('button',{name:'Salvar oportunidade',exact:true}).click()
+  await form.waitFor({state:'hidden'})
+  assert(salvouOportunidade.motivo_perda==='prazo_cliente'&&salvouOportunidade.retomar_em==='2026-12-01')
+  await context.route('**/rest/v1/rpc/funil_modelo_aplicar',async r=>{aplicouModelo=r.request().postDataJSON();preparacaoNicho.funil=true;await r.fulfill({status:200,contentType:'application/json',body:''})})
+  await context.route('**/rest/v1/rpc/preparacao_concluir',async r=>{preparacaoNicho.concluida_em=now;await r.fulfill({status:200,contentType:'application/json',body:''})})
+  await page.goto(base+'/preparacao')
+  await page.getByLabel('Nicho',{exact:true}).selectOption('imobiliario')
+  assert(await page.getByRole('button',{name:'Aplicar modelo',exact:true}).isDisabled())
+  await page.getByLabel('Confirmo a substituição dos nomes das etapas',{exact:true}).check()
+  await page.getByRole('button',{name:'Aplicar modelo',exact:true}).click()
+  await page.getByText(/Modelo aplicado/).waitFor()
+  assert(aplicouModelo.p_modelo==='imobiliario')
+  await page.getByRole('button',{name:'Concluir preparação',exact:true}).click()
+  await page.getByText('Preparação concluída.',{exact:true}).waitFor()
+  console.log('PASS nicho: campo por etapa, zero/false, perda com retomada, modelo explícito e preparação')
  }
  if(comCasos){
   let assumiuCaso=null,finalizouCaso=null

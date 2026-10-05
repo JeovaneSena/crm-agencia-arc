@@ -1,0 +1,5 @@
+[
+ {"chave":"generico","nome":"Operação geral","rotulos":["Novo lead","Qualificação","Diagnóstico","Diagnóstico realizado","Proposta","Negociação","Ganho","Perdido"]},
+ {"chave":"servicos","nome":"Serviços profissionais","rotulos":["Novo contato","Entender a necessidade","Reunião marcada","Reunião realizada","Escopo e proposta","Ajustes finais","Contrato fechado","Não fechado"]},
+ {"chave":"imobiliario","nome":"Negociação de imóveis","rotulos":["Novo interessado","Perfil e orçamento","Visita marcada","Visita realizada","Proposta de compra","Negociação","Venda fechada","Não fechado"]}
+]

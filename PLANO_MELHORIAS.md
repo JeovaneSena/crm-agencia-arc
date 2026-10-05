@@ -317,10 +317,11 @@ espera de saldo, espera proporcional, e portar a fila de casos (0035) e a revis�
 melhorias (0036) como opcionais. Implementação genérica nas migrações 0027–0029;
 evidências e roteiro remoto em [docs/ACEITE_FASE_5.md](docs/ACEITE_FASE_5.md).
 
-**Fase 6 — Nicho sem mexer no núcleo.** Campos personalizados, campos obrigatórios por
+**Fase 6 — Nicho sem mexer no núcleo (IMPLEMENTADA LOCALMENTE; ACEITE REAL PENDENTE).** Campos personalizados, campos obrigatórios por
 etapa, motivos de perda editáveis, funis prontos por nicho no gerador e primeiro acesso
 guiado. Isto cumpre o critério do `PLANO_BASE.md`: um segundo nicho sem alterar o
-núcleo.
+núcleo. Migrações 0030–0032 e modelo inicial selecionável no gerador; roteiro em
+[docs/ACEITE_FASE_6.md](docs/ACEITE_FASE_6.md).
 
 **Fase 7 — Gestão e conformidade.** Desempenho por atendente, perdas, previsão,
 auditoria, LGPD, automações QUANDO / SE / ENTÃO, módulo de propostas, distribuição

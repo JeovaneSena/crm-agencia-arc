@@ -91,7 +91,13 @@
     "test:melhorias:db:apply": "node scripts/base-migrar.mjs apply database/base/0029_revisao_do_assistente.sql database/base/0029_check.sql --confirm",
     "test:ui:casos": "node scripts/browser-check.mjs --casos",
     "test:ui:melhorias": "node scripts/browser-check.mjs --melhorias",
-    "test:melhorias:rota": "npx --yes deno@2 test --allow-env supabase/functions/_shared/revisao_rota_test.ts"
+    "test:melhorias:rota": "npx --yes deno@2 test --allow-env supabase/functions/_shared/revisao_rota_test.ts",
+    "test:campos": "npx --yes deno@2 test scripts/testes/campos_test.ts",
+    "test:nicho:db:rehearsal": "node scripts/base-migrar.mjs rehearse database/base/0030_nicho_configuravel.sql database/base/0030_check.sql",
+    "test:nicho:db:apply": "node scripts/base-migrar.mjs apply database/base/0030_nicho_configuravel.sql database/base/0030_check.sql --confirm",
+    "test:preparacao:db:rehearsal": "node scripts/base-migrar.mjs rehearse database/base/0031_modelos_e_preparacao.sql database/base/0031_check.sql",
+    "test:preparacao:db:apply": "node scripts/base-migrar.mjs apply database/base/0031_modelos_e_preparacao.sql database/base/0031_check.sql --confirm",
+    "test:ui:nicho": "node scripts/browser-check.mjs --nicho"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

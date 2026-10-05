@@ -106,3 +106,13 @@ Uma nova instalação abre sem dado ou marca de cliente e permite configurar um
 nicho pela interface. Repetir a instalação para um segundo nicho não requer
 alterar o núcleo. Nenhum comando da base consegue atingir a ARC com suas
 configurações padrão.
+
+## Evolução local por nicho (05/10/2026)
+
+A fase 6 acrescentou campos personalizados, exigências por destino, motivos de perda
+editáveis, modelos de funil e preparação guiada (0030–0032). Foram geradas instalações
+locais de serviços e imobiliária sem alterar o núcleo entre elas. O vocabulário de
+cada modelo preserva as oito chaves das etapas e as regras da agenda. Isso não encerra
+a validação remota do passo 6: os dois Supabase distintos continuam pendentes.
+Contratos em [docs/NICHOS_E_PREPARACAO.md](docs/NICHOS_E_PREPARACAO.md) e evidências em
+[docs/ACEITE_FASE_6.md](docs/ACEITE_FASE_6.md).

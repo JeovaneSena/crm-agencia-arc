@@ -2,6 +2,9 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { moeda, erroOportunidade, listarOportunidades, type Oportunidade } from '../lib/oportunidades'
+import { CamposEditor } from './CamposPersonalizados'
+import { erroValor, type CampoDef, type ValoresCampos } from '../lib/camposRegras'
+import type { MotivoPerda } from './TabPersonalizacao'
 import { useFunil } from '../lib/funil'
 import { moduloAtivo } from '../lib/modulos'
 import type { LeadStatus } from '../types'
@@ -27,6 +30,11 @@ export function EditorOportunidade({ oportunidade, leadId, statusInicial, onClos
   const [servicos, setServicos] = useState(oportunidade?.servicos_contratados ?? [])
   const [escopo, setEscopo] = useState(oportunidade?.escopo ?? '')
   const [catalogo, setCatalogo] = useState<string[]>([])
+  const [defs,setDefs]=useState<CampoDef[]>([])
+  const [valores,setValores]=useState<ValoresCampos>(oportunidade?.campos_custom??{})
+  const [motivos,setMotivos]=useState<MotivoPerda[]>([])
+  const [perda,setPerda]=useState(oportunidade?.motivo_perda??'')
+  const [retomar,setRetomar]=useState(oportunidade?.retomar_em??'')
   const [erro, setErro] = useState('')
   const [salvando, setSalvando] = useState(false)
   const [cancelando, setCancelando] = useState(false)
@@ -35,6 +43,7 @@ export function EditorOportunidade({ oportunidade, leadId, statusInicial, onClos
   const encerrada = !!oportunidade?.fechado_em
   useEffect(() => {
     let vivo = true
+    void Promise.all([supabase.from('campos_personalizados').select('*').eq('entidade','oportunidade').order('rotulo'),supabase.from('motivos_perda').select('*').order('rotulo')]).then(([d,m])=>{if(!vivo)return;if(d.error||m.error){setErro('Não foi possível carregar os campos e motivos.');return}setDefs(d.data??[]);setMotivos(m.data??[])})
     void supabase.from('catalogo_servicos').select('nome').eq('ativo', true).eq('arquivado', false).eq('e_reuniao_previa', false).order('nome').then(({ data, error }) => {
       if (!vivo) return
       if (error) setErro('Não foi possível carregar os serviços.')
@@ -52,9 +61,12 @@ export function EditorOportunidade({ oportunidade, leadId, statusInicial, onClos
     if (numero !== null && (!Number.isFinite(numero) || numero < 0)) { setErro('Informe um valor válido.'); return }
     if (!cancelando && status === 'ganho' && !encerrada && (numero === null || !servicos.length)) { setErro('Informe o valor e os serviços contratados antes de marcar Ganho.'); return }
     if (cancelando && motivo.trim().length < 5) { setErro('Descreva o motivo do cancelamento (mínimo de 5 caracteres).'); return }
+    const invalido=defs.filter(c=>c.ativo).map(c=>erroValor(c,valores[c.chave])).find(Boolean)
+    if(invalido){setErro(invalido);return}
+    if(!cancelando&&status==='perdido'&&!encerrada&&!perda){setErro('Informe o motivo da perda.');return}
     setSalvando(true); setErro('')
     try {
-      const campos = cancelando ? { status: 'perdido', motivo_cancelamento: motivo.trim() } : { nome: nome.trim(), status, valor_proposta: numero, servicos_contratados: servicos, escopo, responsavel_id: responsavel || null }
+      const campos = cancelando ? { status: 'perdido', motivo_cancelamento: motivo.trim() } : { nome: nome.trim(), status, valor_proposta: numero, servicos_contratados: servicos, escopo, responsavel_id: responsavel || null, campos_custom: valores, motivo_perda:status==='perdido'?perda:null, retomar_em:retomar||null }
       const q = oportunidade
         ? supabase.from('oportunidades').update(campos).eq('id', oportunidade.id).eq('updated_at', oportunidade.updated_at)
         : supabase.from('oportunidades').insert({ ...campos, contato_id: leadId })
@@ -70,6 +82,8 @@ export function EditorOportunidade({ oportunidade, leadId, statusInicial, onClos
       {encerrada && <p>Venda encerrada. Para outra compra, crie uma nova oportunidade. O histórico é preservado em caso de cancelamento.</p>}
       <label>Nome da oportunidade<input autoFocus required maxLength={160} disabled={encerrada || salvando} style={campo} value={nome} onChange={e => setNome(e.target.value)} /></label>
       <label>Etapa<select aria-label="Etapa" style={campo} disabled={encerrada || salvando} value={status} onChange={e => setStatus(e.target.value as LeadStatus)}>{funil.etapas.map(e => <option key={e.chave} value={e.chave}>{e.rotulo}</option>)}</select></label>
+      {status==='perdido'&&!cancelando&&<><label>Motivo da perda<select className="arc-field" aria-label="Motivo da perda" required disabled={encerrada||salvando} value={perda} onChange={e=>setPerda(e.target.value)}><option value="">Escolha um motivo</option>{motivos.filter(m=>m.ativo||m.chave===oportunidade?.motivo_perda).map(m=><option key={m.chave} value={m.chave}>{m.rotulo}{m.ativo?'':' (arquivado)'}</option>)}</select></label>{motivos.find(m=>m.chave===perda)?.exige_retomada&&<label>Retomar em<input className="arc-field" type="date" aria-label="Retomar em" required disabled={encerrada||salvando} value={retomar} onChange={e=>setRetomar(e.target.value)}/></label>}</>}
+      {!!defs.some(c=>c.ativo)&&<CamposEditor defs={defs} valores={valores} onChange={setValores} disabled={encerrada||salvando} etapa={status}/>}
       <label>Responsável<select aria-label="Responsável" style={campo} disabled={encerrada || salvando} value={responsavel} onChange={e => setResponsavel(e.target.value)}><option value="">Sem responsável</option>{equipe.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}</select></label>
       <label>Valor da proposta (R$)<input type="number" min="0" max="999999999999.99" step="0.01" disabled={encerrada || salvando} style={campo} value={valor} onChange={e => setValor(e.target.value)} /></label>
       <fieldset disabled={encerrada || salvando} style={{ border: '1px solid var(--border)', borderRadius: 8 }}><legend>Serviços desta contratação</legend>{[...new Set([...catalogo, ...servicos])].map(s => <label key={s} style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '10px 0' }}><input type="checkbox" checked={servicos.includes(s)} onChange={e => setServicos(e.target.checked ? [...servicos, s] : servicos.filter(x => x !== s))} />{s}</label>)}{!catalogo.length && !servicos.length && <p>Nenhum serviço disponível. Confira o catálogo.</p>}</fieldset>

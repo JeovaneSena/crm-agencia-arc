@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import SeletorTema from '../components/SeletorTema'
 import React, { useEffect, useRef, useState } from 'react'
 import {
@@ -9,6 +10,7 @@ import { FORCA_CORES, FORCA_MINIMA, FORCA_ROTULOS, REGRAS_SENHA } from '../lib/s
 import { supabase } from '../lib/supabase'
 import type { Usuario, ConfiguracoesNegocio, HorarioComercial } from '../types'
 import TabEmpresa from '../components/TabEmpresa'
+import TabPersonalizacao from '../components/TabPersonalizacao'
 import TabFunil from '../components/TabFunil'
 import RetencaoDeMidia from '../components/RetencaoDeMidia'
 import TabEtiquetas from '../components/TabEtiquetas'
@@ -79,7 +81,7 @@ const FUSOS = [
 
 const FUSO_PADRAO = 'America/Sao_Paulo'
 
-type TabKey = 'perfil' | 'empresa' | 'horarios' | 'funil' | 'etiquetas'
+type TabKey = 'perfil' | 'empresa' | 'horarios' | 'funil' | 'etiquetas' | 'personalizacao'
 
 /**
  * Só o que é configuração da empresa.
@@ -93,6 +95,7 @@ const TABS: { key: TabKey; label: string; icon: React.ElementType }[] = [
   { key: 'empresa',  label: 'Empresa',                   icon: MapPin },
   { key: 'horarios', label: 'Horários de Funcionamento', icon: Clock },
   { key: 'funil',    label: 'Funil',                     icon: KanbanSquare },
+  { key: 'personalizacao', label: 'Personalização', icon: Tag },
   { key: 'etiquetas', label: 'Etiquetas',                icon: Tag },
 ]
 
@@ -758,7 +761,7 @@ function TabHorarios() {
    Main Page
 ────────────────────────────────────────────── */
 export default function Configuracoes() {
-  const [activeTab, setActiveTab] = useState<TabKey>('perfil')
+  const [activeTab, setActiveTab] = useState<TabKey>(()=>{const aba=new URLSearchParams(window.location.search).get('aba');return TABS.some(t=>t.key===aba)?aba as TabKey:'perfil'})
   const [userId, setUserId] = useState<string | null>(null)
 
   useEffect(() => {
@@ -774,6 +777,7 @@ export default function Configuracoes() {
       <div className="fade-in-1" style={{ marginBottom: 24 }}>
         <h1 style={{ fontSize: 28, fontWeight: 700, color: 'var(--text)', margin: 0 }}>Configurações</h1>
         <p style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>Gerencie suas informações e os dados da empresa.</p>
+        <Link to="/preparacao">Abrir guia de configuração</Link>
       </div>
 
       {/* Tabs */}
@@ -795,6 +799,7 @@ export default function Configuracoes() {
         {activeTab === 'perfil' && userId && <TabPerfil userId={userId} />}
         {activeTab === 'empresa' && <><TabEmpresa />{moduloAtivo('conversas') && <RetencaoDeMidia />}</>}
         {activeTab === 'funil' && <TabFunil />}
+        {activeTab === 'personalizacao' && <TabPersonalizacao />}
         {activeTab === 'etiquetas' && <TabEtiquetas />}
         {activeTab === 'horarios' && <TabHorarios />}
       </div>

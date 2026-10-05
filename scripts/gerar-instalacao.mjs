@@ -59,13 +59,13 @@ const MODULOS = {
   },
 }
 const NUCLEO = {
-  migracoes: ['0001_base', '0002_nucleo_configuravel', '0003_contatos_proxima_reuniao', '0004_dashboard', '0005_funcoes_so_equipe', '0006_storage_perfil_logo', '0011_central_de_avisos', '0017_etiquetas', '0018_responsavel_e_lote', '0019_importar_contatos', '0020_tarefas', '0021_radar', '0023_recuperacao_de_falta'],
+  migracoes: ['0001_base', '0002_nucleo_configuravel', '0003_contatos_proxima_reuniao', '0004_dashboard', '0005_funcoes_so_equipe', '0006_storage_perfil_logo', '0011_central_de_avisos', '0017_etiquetas', '0018_responsavel_e_lote', '0019_importar_contatos', '0020_tarefas', '0021_radar', '0023_recuperacao_de_falta', '0030_nicho_configuravel', '0031_modelos_e_preparacao', '0032_modelo_inicial'],
   funcoes: ['equipe'],
   compartilhados: ['db.ts', 'equipe-nucleo.ts', 'equipe_nucleo_test.ts', 'avisos.ts', 'avisos_test.ts'],
   arquivos: ['index.html', 'eslint.config.js', 'tsconfig.json', 'tsconfig.app.json', 'tsconfig.node.json', 'vite.config.ts', 'vercel.json', 'package-lock.json', '.gitignore'],
   pastas: ['src', 'public', 'supabase/email-templates'],
-  scripts: ['scripts/base-database.mjs', 'scripts/base-migrar.mjs', 'scripts/preflight-base.mjs', 'scripts/browser-check.mjs', 'scripts/auth-config.mjs', 'scripts/ensaio-local.mjs', 'scripts/lib/proibidos.mjs', 'scripts/lib/supabase-stub.sql', 'scripts/testes/lib_test.ts'],
-  npm: ['dev', 'build', 'lint', 'preview', 'preflight', 'test:db:local', 'test:lib', 'test:avisos', 'auth:config', 'auth:aplicar', 'test:ui',
+  scripts: ['scripts/base-database.mjs', 'scripts/base-migrar.mjs', 'scripts/preflight-base.mjs', 'scripts/browser-check.mjs', 'scripts/auth-config.mjs', 'scripts/ensaio-local.mjs', 'scripts/lib/proibidos.mjs', 'scripts/lib/supabase-stub.sql', 'scripts/testes/lib_test.ts', 'scripts/testes/campos_test.ts'],
+  npm: ['dev', 'build', 'lint', 'preview', 'preflight', 'test:db:local', 'test:lib', 'test:avisos', 'test:campos', 'test:ui:nicho', 'test:nicho:db:rehearsal', 'test:nicho:db:apply', 'test:preparacao:db:rehearsal', 'test:preparacao:db:apply', 'auth:config', 'auth:aplicar', 'test:ui',
     ...['base', 'nucleo', 'contatos', 'dashboard', 'funcoes', 'storage', 'avisos', 'etiquetas', 'responsavel', 'importar', 'tarefas', 'radar', 'recuperacao'].flatMap(n => n === 'base'
       ? ['test:base:db:rehearsal', 'test:base:db:apply', 'test:base:db:verify']
       : [`test:${n}:db:rehearsal`, `test:${n}:db:apply`])],
@@ -96,6 +96,9 @@ const nome = opcoes.nome.trim()
 if (!nome || nome.length > 80 || /[<>"\\]/.test(nome)) falhar('nome vazio, longo demais ou com caracteres < > " \\.')
 const fuso = opcoes.fuso ?? 'America/Sao_Paulo'
 try { new Intl.DateTimeFormat('pt-BR', { timeZone: fuso }) } catch { falhar(`fuso desconhecido: ${fuso}`) }
+const modelosNicho = JSON.parse(readFileSync(join(base,'src/lib/modelosNicho.json'),'utf8'))
+const nicho = opcoes.nicho ?? 'generico'
+if (!modelosNicho.some(m=>m.chave===nicho)) falhar(`nicho inválido. Disponíveis: ${modelosNicho.map(m=>m.chave).join(', ')}.`)
 const pedidos = (opcoes.modulos ?? '').split(',').map(m => m.trim()).filter(Boolean)
 for (const m of pedidos) if (!MODULOS[m]) falhar(`módulo "${m}" não existe ainda. Disponíveis: ${Object.keys(MODULOS).join(', ')}.`)
 // Ordem canônica (a do MODULOS): quem troca um arquivo do anterior vem depois, qualquer que seja a ordem digitada.
@@ -131,6 +134,14 @@ try {
   NUCLEO.scripts.forEach(copiar)
   sel.flatMap(m => m.arquivos ?? []).forEach(copiar)
   for (const v of migracoes) { copiar(`database/base/${v}.sql`); copiar(`database/base/${v.slice(0, 4)}_check.sql`) }
+  if (nicho !== 'generico') {
+    const versao='0032_modelo_inicial'
+    const m=modelosNicho.find(m=>m.chave===nicho)
+    const chaves=['novo_lead','qualificacao','diagnostico','diagnostico_realizado','proposta','negociacao','ganho','perdido']
+    const updates=m.rotulos.map((r,i)=>`UPDATE public.etapas_funil SET rotulo='${r.replaceAll("'","''")}' WHERE chave='${chaves[i]}';`).join('\n')
+    writeFileSync(join(destino,`database/base/${versao}.sql`),`BEGIN;\n${updates}\nUPDATE public.preparacao_crm SET modelo='${nicho}' WHERE id;\nINSERT INTO crm_base_private.schema_migrations(version) VALUES('${versao}');\nNOTIFY pgrst,'reload schema';\nCOMMIT;\n`)
+    writeFileSync(join(destino,'database/base/0032_check.sql'),`DO $$ BEGIN IF NOT EXISTS(SELECT 1 FROM public.preparacao_crm WHERE modelo='${nicho}') THEN RAISE EXCEPTION 'FAIL: modelo inicial';END IF;END $$;\n`)
+  }
   funcoes.forEach(f => copiar(`supabase/functions/${f}`))
   // Um módulo pode trocar um arquivo do anterior: [origem, destino] vence o arquivo de mesmo nome.
   const destinos = new Map()
@@ -166,7 +177,7 @@ try {
 
   let revisao = 'desconhecida'
   try { revisao = execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: base }).toString().trim() } catch { /* sem git */ }
-  const instalacao = { slug, nome, dominio, fuso, modulos, migracoes, funcoes, base_revisao: revisao, gerada_em: new Date().toISOString().slice(0, 10) }
+  const instalacao = { slug, nome, dominio, fuso, nicho, modulos, migracoes, funcoes, base_revisao: revisao, gerada_em: new Date().toISOString().slice(0, 10) }
   writeFileSync(join(destino, 'instalacao.json'), JSON.stringify(instalacao, null, 2) + '\n')
 
   writeFileSync(join(destino, '.env.example'), `VITE_SUPABASE_URL=\nVITE_SUPABASE_ANON_KEY=\nVITE_MODULOS=${modulos.join(',')}\n`)
@@ -179,6 +190,7 @@ try {
   }).join('\n')
   const linhasFuncoes = funcoes.map(f => `supabase functions deploy ${f} --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt`).join('\n')
   const extras = [
+    `- Preparação: modelo inicial ${nicho}. No primeiro acesso, abra /preparacao, confira empresa, horários, catálogo e funil. Em Configurações → Personalização, defina campos e motivos de perda; exigências por etapa são conferidas no banco. O guia não ativa integrações nem substitui o aceite real.`,
     modulos.includes('captacao') && '- Captação: aplique a 0025 e a 0026 antes de publicar os webhooks. Publique `captacao` com `--no-verify-jwt`. Em Leads recebidos, o gestor cria uma fonte desligada, guarda o segredo no servidor do site e configura POST JSON ou formulário plano para o endereço exibido, com cabeçalho `X-Captacao-Segredo`. Envie `whatsapp` e `id_externo` único por envio (reenvios mantêm o mesmo ID), e opcionalmente `nome`, `email`, `empresa` e as cinco UTMs. Ative só depois de revisar; telefone repetido não altera o contato nem a primeira origem. Nunca coloque o segredo no JavaScript público. Para landing pages, configure o código de referência e as UTMs da fonte e inclua `[ref:codigo]` na mensagem do botão WhatsApp (exige conversas). Com campanhas, o webhook da Meta registra a origem de anúncios/publicações quando a Meta entrega referral. Consulte o relatório por origem em Leads recebidos.',
     modulos.includes('conversas') && '- Conversas: configure `WEBHOOK_SEGREDO`, `UAZAPI_API_URL` e `UAZAPI_TOKEN` nos secrets das Edge Functions; configure o webhook da uazapi para `https://<ref>.supabase.co/functions/v1/whatsapp` e teste conexão, recebimento e envio. Configure também `VIGIA_SEGREDO` (24+ caracteres) e agende `node scripts/vigia-worker.mjs` a cada 5 minutos, com `SUPABASE_URL` e `VIGIA_SEGREDO` no ambiente do agendador: é ele que avisa na Central quando o WhatsApp cai ou uma mensagem não sai; sem o agendamento esses avisos não aparecem.',
     modulos.includes('conversas') && '- Automações: configure `AUTOMACOES_SEGREDO` (24+ caracteres) nas Edge Functions e agende `node scripts/automacoes-worker.mjs` a cada 5 minutos com `SUPABASE_URL` e `AUTOMACOES_SEGREDO`. Na tela Automações, registre a autorização dos contatos, configure os textos/modelos e só então ative as regras. Envios pela Meta exigem o módulo campanhas.',

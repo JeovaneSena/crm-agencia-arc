@@ -23,3 +23,8 @@ no painel e mantenha o vigia agendado. `casos` acrescenta 0028; `melhorias` acre
 e do frontend. Os dois módulos exigem conversas e assistente, mas são independentes
 entre si. Veja [Casos e melhorias](CASOS_E_MELHORIAS.md) e o
 [aceite da fase 5](ACEITE_FASE_5.md).
+
+Para personalização e primeiro acesso, aplique 0030/0031 antes do frontend.
+O gerador aceita `--nicho generico|servicos|imobiliario`; nos dois últimos, inclui
+a 0032 inicial no roteiro da derivada. Abra `/preparacao` no primeiro login de gestor.
+Veja [configuração por nicho](NICHOS_E_PREPARACAO.md) e [aceite da fase 6](ACEITE_FASE_6.md).

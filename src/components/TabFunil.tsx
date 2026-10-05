@@ -1,3 +1,4 @@
+import ModelosFunil from './ModelosFunil'
 import { useState } from 'react'
 import { ArrowDown, ArrowUp, Check } from 'lucide-react'
 import { supabase } from '../lib/supabase'
@@ -103,7 +104,7 @@ export default function TabFunil() {
   }
 
   return (
-    <div style={{ background: 'var(--surface)', borderRadius: 14, border: '1px solid var(--border)', padding: '22px 26px' }}>
+    <><ModelosFunil/><div style={{ background: 'var(--surface)', borderRadius: 14, border: '1px solid var(--border)', padding: '22px 26px' }}>
       <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>Etapas do funil</div>
       <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: '0 0 14px', lineHeight: 1.6 }}>
         Renomeie, troque a cor e reordene as etapas em andamento. O histórico das oportunidades não muda:
@@ -115,6 +116,6 @@ export default function TabFunil() {
       <div role="group" aria-label="Etapas em andamento">{abertas.map(e => linha(e, true))}</div>
       <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)', margin: '18px 0 2px' }}>Resultado da venda (sempre no fim)</div>
       <div role="group" aria-label="Resultado da venda">{encerradas.map(e => linha(e, false))}</div>
-    </div>
+    </div></>
   )
 }

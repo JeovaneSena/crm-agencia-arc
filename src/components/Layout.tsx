@@ -1,3 +1,4 @@
+import AvisoPreparacao from './AvisoPreparacao'
 import { useEffect, useState, useRef } from 'react'
 import { Outlet } from 'react-router-dom'
 import { Menu, X } from 'lucide-react'
@@ -78,6 +79,7 @@ export default function Layout() {
           <Sidebar onNavigate={() => setMenuAberto(false)} />
         </div>
         <main id="conteudo" className="app-main" tabIndex={-1} inert={aberto}>
+          <AvisoPreparacao />
           <Outlet />
         </main>
       </div>

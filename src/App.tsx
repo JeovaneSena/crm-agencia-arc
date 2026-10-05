@@ -12,6 +12,7 @@ import Profissionais from './pages/Profissionais'
 import Leads from './pages/Leads'
 import Clientes from './pages/Clientes'
 import LeadDetail from './pages/LeadDetail'
+import Preparacao from './pages/Preparacao'
 import Configuracoes from './pages/Configuracoes'
 import Procedimentos from './pages/Procedimentos'
 import Assistente from './pages/Assistente'
@@ -65,6 +66,7 @@ export default function App() {
               <Route path="/usuarios" element={<Usuarios />} />
               {moduloAtivo('assistente') && <Route path="/assistente-ia" element={<Assistente />} />}
               {moduloAtivo('conversas') && <Route path="/automacoes" element={<Automacoes />} />}
+              <Route path="/preparacao" element={<Preparacao />} />
               <Route path="/configuracoes" element={<Configuracoes />} />
             </Route>
             <Route path="/leads" element={<Leads />} />

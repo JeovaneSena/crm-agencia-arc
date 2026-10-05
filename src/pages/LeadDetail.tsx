@@ -1,5 +1,6 @@
 import ModalPortal from '../components/ModalPortal'
 import OportunidadeReuniao from '../components/OportunidadeReuniao'
+import CamposDoContato from '../components/CamposPersonalizados'
 import Oportunidades from '../components/Oportunidades'
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
@@ -498,6 +499,7 @@ export default function LeadDetail() {
         </SectionCard>
       </div>
 
+      <CamposDoContato contatoId={lead.id} />
       <Oportunidades leadId={lead.id} />
 
       {/* Histórico de Reuniões */}

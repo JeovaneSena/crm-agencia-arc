@@ -18,6 +18,8 @@ npm run preflight
 npm run gerar -- /caminho/fora/crm-base/meu-cliente --slug meu-cliente --nome "Meu Cliente" --dominio crm.exemplo.com.br --modulos conversas,assistente --fuso America/Sao_Paulo
 ```
 
+Use `--nicho generico|servicos|imobiliario` para escolher o vocabulário inicial do funil. O guia de primeiro acesso está em `/preparacao`; campos e motivos ficam em Configurações → Personalização. Veja [configuração por nicho](docs/NICHOS_E_PREPARACAO.md).
+
 Omita `--modulos` para instalar só o núcleo. As opções possíveis são `conversas`, `projetos`, `assistente`, `campanhas`, `captacao`, `casos` e `melhorias` (separadas por vírgula). O gerador cria um Git próprio, `instalacao.json`, `.env.example` e um README com as migrações, funções e integrações exatas daquela instalação. Ele recusa destino dentro da base, pasta preenchida e identificadores ou credenciais de clientes conhecidos.
 
 Para o caminho completo, do zero até o primeiro login, siga o [passo a passo para começar](docs/COMECANDO.md). Leia também o [processo de instalação](docs/INSTALACAO.md) antes de conectar o Supabase. A [arquitetura e o estado da validação](PLANO_BASE.md) estão no plano da base. Segredos nunca entram no Git; `.env` é ignorado.
@@ -33,7 +35,7 @@ npm run lint
 
 Os testes de função e de interface estão em `package.json`. Nenhum comando deste repositório publica ou aplica alterações remotas por padrão. Os scripts de banco e de Auth exigem um projeto explícito, credenciais por variável de ambiente e `--confirm` para aplicar.
 
-As migrações 0001–0029 estão em `database/base`; o gerador copia apenas as necessárias. Use sempre as migrações de `database/base`; migrações de outras origens não fazem parte deste repositório e não devem ser aplicadas numa instalação nova.
+As migrações 0001–0032 estão em `database/base`; o gerador copia apenas as necessárias. Use sempre as migrações de `database/base`; migrações de outras origens não fazem parte deste repositório e não devem ser aplicadas numa instalação nova.
 
 ## Módulos
 

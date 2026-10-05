@@ -67,3 +67,9 @@ transferiu ou devolveu).
 ## Recuperação de faltas
 
 A migração 0023 cria uma tarefa ao registrar uma falta e conclui a recuperação quando houver outra reunião futura. Ver [automações](AUTOMACOES.md) para regras e limites.
+
+## Personalização e primeiro acesso
+
+As migrações 0030/0031 acrescentam campos de contato/oportunidade, exigências por
+etapa, motivos de perda editáveis, modelos de funil e guia de preparação. São parte
+do núcleo e funcionam sem integrações. Contratos em [NICHOS_E_PREPARACAO.md](NICHOS_E_PREPARACAO.md).
