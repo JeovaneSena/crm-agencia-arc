@@ -323,9 +323,12 @@ guiado. Isto cumpre o critério do `PLANO_BASE.md`: um segundo nicho sem alterar
 núcleo. Migrações 0030–0032 e modelo inicial selecionável no gerador; roteiro em
 [docs/ACEITE_FASE_6.md](docs/ACEITE_FASE_6.md).
 
-**Fase 7 — Gestão e conformidade.** Desempenho por atendente, perdas, previsão,
+**Fase 7 — Gestão e conformidade (IMPLEMENTADA LOCALMENTE; ACEITE REAL PENDENTE).** Desempenho por atendente, perdas, previsão,
 auditoria, LGPD, automações QUANDO / SE / ENTÃO, módulo de propostas, distribuição
-automática, diagnóstico e cópia de segurança, verificação em duas etapas.
+automática, diagnóstico e cópia de segurança, verificação em duas etapas. Migrações
+0033–0040, propostas opcionais no gerador e roteiro em
+[docs/ACEITE_FASE_7.md](docs/ACEITE_FASE_7.md). Cópia da aplicação/Storage implementada;
+restauração ponta a ponta e Auth separado precisam de prova em ambiente real.
 
 **Depois:** follow-up v2 com IA, Google Agenda, conversões para Meta e Google, busca de
 empresas para prospecção, score, saúde do número.

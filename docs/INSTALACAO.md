@@ -28,3 +28,5 @@ Para personalização e primeiro acesso, aplique 0030/0031 antes do frontend.
 O gerador aceita `--nicho generico|servicos|imobiliario`; nos dois últimos, inclui
 a 0032 inicial no roteiro da derivada. Abra `/preparacao` no primeiro login de gestor.
 Veja [configuração por nicho](NICHOS_E_PREPARACAO.md) e [aceite da fase 6](ACEITE_FASE_6.md).
+
+Para gestão e privacidade, aplique 0033–0040 selecionadas antes das funções e do frontend. A 0036 pertence ao módulo opcional `propostas`. Publique `gestao`, configure o trabalhador e confira a verificação em duas etapas no servidor. Consulte [Gestão e privacidade](GESTAO_E_PRIVACIDADE.md), [operação de backup](OPERACAO_FASE_7.md) e [aceite da fase 7](ACEITE_FASE_7.md).

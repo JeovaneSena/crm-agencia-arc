@@ -145,6 +145,7 @@ export interface Contato {
 }
 
 export interface Consulta {
+  confirmada_em?:string|null
   id: string
   contato_id: string
   profissional_id: string | null

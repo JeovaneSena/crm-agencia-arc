@@ -20,13 +20,13 @@ const NOMES_COR: Record<CorEtapa, string> = {
 
 export default function TabFunil() {
   const funil = useFunil()
-  const [rascunho, setRascunho] = useState<Record<string, { rotulo: string; cor: CorEtapa; esfria: string }>>({})
+  const [rascunho, setRascunho] = useState<Record<string, { rotulo: string; cor: CorEtapa; esfria: string; probabilidade:string }>>({})
   const [salvando, setSalvando] = useState<string | null>(null)
   const [erro, setErro] = useState('')
   const [salvo, setSalvo] = useState<string | null>(null)
 
-  const valor = (e: Etapa) => rascunho[e.chave] ?? { rotulo: e.rotulo, cor: e.cor, esfria: e.esfria_apos_horas == null ? '' : String(e.esfria_apos_horas) }
-  const alterou = (e: Etapa) => valor(e).rotulo.trim() !== e.rotulo || valor(e).cor !== e.cor || valor(e).esfria.trim() !== (e.esfria_apos_horas == null ? '' : String(e.esfria_apos_horas))
+  const valor = (e: Etapa) => rascunho[e.chave] ?? { rotulo: e.rotulo, cor: e.cor, probabilidade:String(e.probabilidade??0), esfria: e.esfria_apos_horas == null ? '' : String(e.esfria_apos_horas) }
+  const alterou = (e: Etapa) => Number(valor(e).probabilidade)!==(e.probabilidade??0) || valor(e).rotulo.trim() !== e.rotulo || valor(e).cor !== e.cor || valor(e).esfria.trim() !== (e.esfria_apos_horas == null ? '' : String(e.esfria_apos_horas))
 
   async function guardar(e: Etapa) {
     const v = valor(e)
@@ -34,8 +34,9 @@ export default function TabFunil() {
     if (!rotulo || rotulo.length > 40) { setErro('O nome da etapa precisa ter de 1 a 40 caracteres.'); return }
     const esfria = v.esfria.trim()
     if (e.tipo === 'aberta' && esfria && !(/^\d+$/.test(esfria) && Number(esfria) >= 1 && Number(esfria) <= 2160)) { setErro('O tempo para esfriar vai de 1 a 2160 horas (90 dias). Deixe vazio para usar 48 horas.'); return }
+    if(!/^\d+$/.test(v.probabilidade)||Number(v.probabilidade)>100){setErro('A probabilidade deve estar entre 0 e 100%.');return}
     setSalvando(e.chave); setErro(''); setSalvo(null)
-    const campos = e.tipo === 'aberta' ? { rotulo, cor: v.cor, esfria_apos_horas: esfria ? Number(esfria) : null } : { rotulo, cor: v.cor }
+    const campos = e.tipo === 'aberta' ? { rotulo, cor: v.cor, probabilidade:Number(v.probabilidade), esfria_apos_horas: esfria ? Number(esfria) : null } : { rotulo, cor: v.cor }
     const { error } = await supabase.from('etapas_funil').update(campos).eq('chave', e.chave)
     setSalvando(null)
     if (error) { setErro('Não foi possível salvar. Confirme que você é gestor e tente de novo.'); return }
@@ -96,6 +97,7 @@ export default function TabFunil() {
           </select>
         ) : <span style={{ width: 130, fontSize: 12, color: 'var(--muted)' }}>{e.tipo === 'ganho' ? 'Verde (fixo)' : 'Vermelho (fixo)'}</span>}
         {e.tipo === 'aberta' && <input aria-label={`Esfria após, em horas, na etapa ${e.rotulo}`} className="arc-field" type="number" min={1} max={2160} inputMode="numeric" placeholder="48" title="Horas sem atividade até o radar marcar o negócio como esfriado (crítico em 3 vezes isso). Vazio = 48." value={v.esfria} onChange={ev => setRascunho(r => ({ ...r, [e.chave]: { ...valor(e), esfria: ev.target.value } }))} style={{ width: 84 }} />}
+        {e.tipo==='aberta'&&<label>Probabilidade (%)<input className="arc-field" aria-label={`Probabilidade na etapa ${e.rotulo}`} type="number" min={0} max={100} value={v.probabilidade} onChange={ev=>setRascunho(r=>({...r,[e.chave]:{...valor(e),probabilidade:ev.target.value}}))} style={{width:85}}/></label>}
         <Button variant="primary" disabled={!alterou(e) || salvando !== null} onClick={() => void guardar(e)}>
           {salvo === e.chave ? <><Check size={14} /> Salvo</> : salvando === e.chave ? 'Salvando…' : 'Salvar'}
         </Button>

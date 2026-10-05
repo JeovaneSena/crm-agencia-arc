@@ -116,3 +116,12 @@ cada modelo preserva as oito chaves das etapas e as regras da agenda. Isso não 
 a validação remota do passo 6: os dois Supabase distintos continuam pendentes.
 Contratos em [docs/NICHOS_E_PREPARACAO.md](docs/NICHOS_E_PREPARACAO.md) e evidências em
 [docs/ACEITE_FASE_6.md](docs/ACEITE_FASE_6.md).
+
+## Gestão e operação local (05/10/2026)
+
+A fase 7 acrescentou relatórios, auditoria, exportação/anonimização em cascata,
+propostas opcionais, rodízio, regras declarativas, diagnóstico, cópia da aplicação
+e Storage e TOTP (0033–0040). As instalações locais mantêm o isolamento de nicho
+e módulo. Cópias não incluem Auth nem secrets; restauração e aceite remoto ainda
+precisam de projetos descartáveis. Consulte [contratos](docs/GESTAO_E_PRIVACIDADE.md),
+[operação](docs/OPERACAO_FASE_7.md) e [evidências](docs/ACEITE_FASE_7.md).

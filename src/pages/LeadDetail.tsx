@@ -1,6 +1,7 @@
 import ModalPortal from '../components/ModalPortal'
 import OportunidadeReuniao from '../components/OportunidadeReuniao'
 import CamposDoContato from '../components/CamposPersonalizados'
+import PrivacidadeContato from '../components/PrivacidadeContato'
 import Oportunidades from '../components/Oportunidades'
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
@@ -501,6 +502,7 @@ export default function LeadDetail() {
 
       <CamposDoContato contatoId={lead.id} />
       <Oportunidades leadId={lead.id} />
+      <PrivacidadeContato contatoId={lead.id} />
 
       {/* Histórico de Reuniões */}
       <div className="fade-in-2">

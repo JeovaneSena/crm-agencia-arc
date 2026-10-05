@@ -5,6 +5,7 @@ import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import { setTimeout as delay } from 'node:timers/promises'
 const base = 'http://127.0.0.1:5187'
+const comGestao=process.argv.includes('--gestao')
 const comConversas = process.argv.includes('--conversas')
 const comProjetos = process.argv.includes('--projetos')
 const comCasos=process.argv.includes('--casos')
@@ -15,7 +16,7 @@ const comCampanhas = process.argv.includes('--campanhas')
 const comCaptacao = process.argv.includes('--captacao')
 const supabaseUrl = 'https://crm-base-test.supabase.co'
 const project = 'crm-base-test'
-const modulosLigados = [(comConversas || comAssistente || comCampanhas) && 'conversas', comProjetos && 'projetos', comAssistente && 'assistente', comCampanhas && 'campanhas', comCaptacao && 'captacao', comCasos && 'casos', comMelhorias && 'melhorias'].filter(Boolean).join(',')
+const modulosLigados = [comGestao && 'propostas',(comConversas || comAssistente || comCampanhas) && 'conversas', comProjetos && 'projetos', comAssistente && 'assistente', comCampanhas && 'campanhas', comCaptacao && 'captacao', comCasos && 'casos', comMelhorias && 'melhorias'].filter(Boolean).join(',')
 // Um servidor sobrando de um teste anterior responderia no lugar do nosso, com outros módulos ligados.
 if (await fetch(base).then(() => true, () => false)) throw Error('A porta 5187 já está em uso (servidor de um teste anterior?). Encerre-o antes de rodar.')
 const server = spawn(process.execPath, ['node_modules/vite/bin/vite.js', '--host', '127.0.0.1', '--port', '5187', '--strictPort'], { stdio: 'ignore', env: { ...process.env, VITE_MODULOS: modulosLigados, VITE_SUPABASE_URL: supabaseUrl, VITE_SUPABASE_ANON_KEY: 'chave-ficticia-para-testes' } })
@@ -24,7 +25,7 @@ await Promise.race([
  new Promise((_,reject) => server.once('exit',code => reject(Error('Servidor encerrou: '+code))))
 ]).catch(e => { server.kill(); throw e })
 const user = { id: '00000000-0000-4000-8000-000000000001', email: 'test@example.invalid', role: 'authenticated', app_metadata: {}, user_metadata: {} }
-const session = { access_token: 'test.token.signature', refresh_token: 'test-refresh', expires_at: Math.floor(Date.now()/1000)+3600, expires_in:3600, token_type:'bearer', user }
+const session = { access_token: `${Buffer.from(JSON.stringify({alg:'HS256',typ:'JWT'})).toString('base64url')}.${Buffer.from(JSON.stringify({sub:user.id,role:'authenticated',aal:'aal1',exp:Math.floor(Date.now()/1000)+3600})).toString('base64url')}.c2ln`, refresh_token: 'test-refresh', expires_at: Math.floor(Date.now()/1000)+3600, expires_in:3600, token_type:'bearer', user }
 let opportunities = []
 let provider='uazapi', metaConsent=false, metaSent=null, papel='gestor'
 let connectionState='conectado'
@@ -95,6 +96,7 @@ const tabelas = {
  campanhas_lista:()=>[campanhaLinha], campanhas:()=>[campanhaCompleta], campanha_destinatarios:()=>destinatarios, campanha_eventos:()=>[{id:'ev1',tipo:'publico_congelado',descricao:'Público congelado para revisão.',criado_em:now}],
  campanhas_controle:()=>[{id:true,pausado:false,pausa_motivo:null,limite_por_minuto:30,limite_diario:250,usados_no_dia:12,proximo_disparo_em:now,atualizada_em:now}],
  marketing_consentimentos:()=>consentimentoRegistrado?[{contato_id:lead.id,ativo:true,consentido_em:now,revogado_em:null,fonte:'pediu pelo WhatsApp'}]:[],
+ distribuicao_config:()=>[{ativa:false,equipe:[],versao:1}],propostas:()=>[],proposta_modelos:()=>[],gestao_regras:()=>[],gestao_execucoes:()=>[],gestao_saidas:()=>[],resultados_anonimos:()=>[],
  assistente_config:()=>[{id:true,modo:'desligada',nome:'Assistente',modelo:'claude-sonnet-5-5',instrucoes:null,numeros_teste:[],max_respostas:12,espera_segundos:6,devolver_apos_minutos:null,teto_mensal_usd:50,saldo_openai:false,saldo_anthropic:true,updated_by:null,updated_at:now}],
  assistente_respostas:()=>[{mensagem_id:'r1',contato_id:lead.id,estado:'ignorada',motivo:'ia_desligada',created_at:now},{mensagem_id:'r2',contato_id:lead.id,estado:'falhou',motivo:'erro_interno',created_at:now}],
  conversa_eventos:()=>[{id:'ce1',contato_id:lead.id,tipo:'transferiu',de_usuario:user.id,para_usuario:'00000000-0000-4000-8000-0000000000aa',por_usuario:user.id,created_at:now}],
@@ -142,7 +144,7 @@ try {
  assert(!proibido.test(await page.locator('body').innerText()),'Marca ou texto de nicho no login')
  await page.evaluate(({project,session})=>localStorage.setItem(`sb-${project}-auth-token`,JSON.stringify(session)),{project,session})
  // Núcleo apenas: sem VITE_MODULOS, módulos opcionais não aparecem no menu.
- const rotas=['/','/crm','/leads','/clientes','/servicos','/equipe','/agenda','/radar','/tarefas','/avisos',`/leads/${lead.id}`,'/configuracoes','/usuarios']
+ const rotas=['/gestao','/regras','/seguranca','/','/crm','/leads','/clientes','/servicos','/equipe','/agenda','/radar','/tarefas','/avisos',`/leads/${lead.id}`,'/configuracoes','/usuarios']
  for(const path of rotas){
   await page.goto(base+path)
   await page.waitForTimeout(600)
@@ -321,7 +323,7 @@ try {
  assert.deepEqual(importado.p_linhas,[{nome:'Ana Souza',whatsapp:'5511987654321',empresa:null,email:'ana@exemplo.com'},{nome:'Caio',whatsapp:'5521999990000',empresa:null,email:null}],'linhas enviadas ao banco')
  console.log('PASS importar planilha')
  await page.goto(base+'/')
- const desligados=[...(comCaptacao?[]:['Leads recebidos']),...(comCampanhas?[]:['Campanhas']),...(comAssistente?[]:['Assistente comercial de IA']),...(comProjetos?[]:['Projetos']),...((comConversas||comAssistente||comCampanhas)?[]:['Conversas'])]
+ const desligados=[...(comGestao?[]:['Propostas']),...(comCaptacao?[]:['Leads recebidos']),...(comCampanhas?[]:['Campanhas']),...(comAssistente?[]:['Assistente comercial de IA']),...(comProjetos?[]:['Projetos']),...((comConversas||comAssistente||comCampanhas)?[]:['Conversas'])]
  for(const modulo of desligados)
   assert.equal(await page.getByRole('link',{name:modulo,exact:true}).count(),0,`Módulo ${modulo} apareceu sem estar ligado`)
  if(modulosLigados.includes('conversas')) {
@@ -801,6 +803,38 @@ try {
   assert(salvo?.corpo?.etapa==='andamento'&&salvo.url.includes('updated_at=eq.'),'salvar não enviou etapa nova com a trava updated_at')
   console.log('PASS projetos: quadro e edição')
  }
+ if(comGestao){
+  let distribuicao=null,regraSalva=null,propostaSalva=null,emissao=null
+  let regrasGestao=[],propostasVenda=[]
+  const pid='00000000-0000-4000-8000-000000000036',rid='00000000-0000-4000-8000-000000000038'
+  await context.route('**/rest/v1/distribuicao_config*',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ativa:false,equipe:[],versao:1})}))
+  await context.route('**/rest/v1/rpc/distribuicao_salvar',async r=>{distribuicao=r.request().postDataJSON();await r.fulfill({status:200,contentType:'application/json',body:''})})
+  await context.route('**/rest/v1/rpc/relatorio_gestao',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({desempenho:[{id:user.id,nome:'Equipe Teste',ganhos:2,perdas:1,valor:1000}],conversas_disponiveis:false,conversas:[],perdas:[{motivo:'Sem orçamento',etapa:'Proposta',quantidade:1}],previsao:{total:1000,ponderado:500,quantidade:1,sem_data:2}})}))
+  await context.route('**/rest/v1/rpc/diagnostico_base',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({migracoes:40,gestores_ativos:1,tabelas_sem_rls:[],tabelas_sem_auditoria:[],tabelas_sem_mfa:[],auditoria_protegida:true,seguranca_api:true,eventos_pendentes:0,eventos_parados:0,saidas_incertas:0})}))
+  await page.goto(base+'/gestao');await page.getByLabel('Ativar distribuição').check();await page.getByLabel('Equipe Teste',{exact:true}).check();await page.getByRole('button',{name:'Salvar distribuição'}).click();await page.waitForTimeout(200)
+  assert.equal(distribuicao?.p_ativa,true);assert.deepEqual(distribuicao.p_equipe,[user.id]);assert.equal(distribuicao.p_versao,1)
+  await page.getByRole('button',{name:'Consultar',exact:true}).click();await page.getByRole('heading',{name:'Previsão de fechamento'}).waitFor();assert((await page.locator('main').innerText()).includes('500,00'));assert.equal(await page.getByRole('columnheader',{name:'Conversas',exact:true}).count(),0)
+  await context.route('**/rest/v1/gestao_regras*',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify(regrasGestao)}))
+  await context.route('**/rest/v1/rpc/gestao_regra_salvar',async r=>{regraSalva=r.request().postDataJSON();regrasGestao=[{id:rid,nome:regraSalva.p_nome,ativa:regraSalva.p_ativa,quando:regraSalva.p_quando,horas:regraSalva.p_horas,condicoes:regraSalva.p_condicoes,acoes:regraSalva.p_acoes,versao:1}];await r.fulfill({status:200,contentType:'application/json',body:JSON.stringify(rid)})})
+  await page.goto(base+'/regras');await page.getByLabel('Nome',{exact:true}).fill('Ligar ao receber negócio');await page.getByLabel('Título',{exact:true}).fill('Ligar para qualificar');await page.getByRole('button',{name:'Criar regra desativada'}).click();await page.getByRole('heading',{name:'Ligar ao receber negócio · Desativada'}).waitFor();assert.equal(regraSalva.p_ativa,false);assert.deepEqual(regraSalva.p_acoes,[{tipo:'tarefa',titulo:'Ligar para qualificar'}])
+  await page.getByRole('button',{name:'Ativar',exact:true}).click();await page.getByRole('heading',{name:'Ligar ao receber negócio · Ativa'}).waitFor();assert.equal(regraSalva.p_versao,1)
+  await context.route('**/rest/v1/propostas?*',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify(propostasVenda)}))
+  await context.route('**/rest/v1/rpc/proposta_salvar',async r=>{propostaSalva=r.request().postDataJSON();propostasVenda=[{id:pid,oportunidade_id:propostaSalva.p_oportunidade,modelo_id:null,titulo:propostaSalva.p_titulo,texto:propostaSalva.p_texto,itens:propostaSalva.p_itens,subtotais:[100],total:100,validade:propostaSalva.p_validade,estado:'rascunho',numero:null,versao:1,snapshot:null}];await r.fulfill({status:200,contentType:'application/json',body:JSON.stringify(pid)})})
+  await context.route('**/rest/v1/rpc/proposta_emitir',async r=>{emissao=r.request().postDataJSON();propostasVenda=propostasVenda.map(p=>({...p,estado:'emitida',numero:'2026-000001',versao:2,snapshot:{cliente:{nome:lead.nome,empresa:lead.empresa,email:lead.email},empresa:{nome_negocio:'Empresa Teste'}}}));await r.fulfill({status:200,contentType:'application/json',body:'"2026-000001"'})})
+  await page.goto(base+'/propostas');await page.getByLabel('Negociação',{exact:true}).selectOption(abertasMock[0].id);await page.getByLabel('Título',{exact:true}).fill('Proposta de teste');await page.getByLabel('Validade',{exact:true}).fill(new Date(Date.now()+86400000*7).toISOString().slice(0,10));await page.getByLabel('Descrição',{exact:true}).fill('Serviço A');await page.getByLabel('Quantidade',{exact:true}).fill('2');await page.getByLabel('Preço (R$)',{exact:true}).fill('50');await page.getByRole('button',{name:'Salvar rascunho'}).click();await page.getByRole('heading',{name:'Rascunho · Proposta de teste'}).waitFor();assert.equal(propostaSalva.p_itens[0].quantidade,2)
+  await page.getByRole('button',{name:'Emitir proposta'}).click();await page.getByRole('heading',{name:'2026-000001 · Proposta de teste'}).waitFor();assert.equal(emissao.p_versao,1)
+  const download=page.waitForEvent('download');await page.getByRole('button',{name:'Baixar PDF'}).click();const pdf=await download;assert.equal(pdf.suggestedFilename(),'proposta-2026-000001.pdf')
+  papel='consultor';for(const path of ['/gestao','/regras']){await page.goto(base+path);await page.waitForTimeout(500);assert.equal(new URL(page.url()).pathname,'/')};await page.goto(base+'/seguranca');await page.getByRole('heading',{name:'Segurança da conta'}).waitFor();papel='gestor'
+  // Conta com fator confirmado: acesso fica na tela de desafio antes de montar o CRM.
+  const factor={id:'00000000-0000-4000-8000-000000000039',friendly_name:'Autenticador teste',factor_type:'totp',status:'verified',created_at:now,updated_at:now}
+  const usuarioMfa={...user,factors:[factor]}
+  await context.route('**/auth/v1/user',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify(usuarioMfa)}))
+  await context.route('**/auth/v1/factors/*/challenge',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({id:'desafio',expires_at:Math.floor(Date.now()/1000)+300})}))
+  const token2=`${Buffer.from(JSON.stringify({alg:'HS256',typ:'JWT'})).toString('base64url')}.${Buffer.from(JSON.stringify({sub:user.id,role:'authenticated',aal:'aal2',exp:Math.floor(Date.now()/1000)+3600})).toString('base64url')}.c2ln`
+  await context.route('**/auth/v1/factors/*/verify',r=>r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({...session,user:usuarioMfa,access_token:token2})}))
+  await page.goto(base+'/gestao');await page.getByRole('heading',{name:'Verificação em duas etapas',exact:true}).waitFor();assert.equal(await page.getByRole('heading',{name:'Relatórios e auditoria'}).count(),0);await page.getByLabel('Código',{exact:true}).fill('123456');await page.getByRole('button',{name:'Confirmar código'}).click();await page.getByRole('heading',{name:'Relatórios e auditoria'}).waitFor()
+  console.log('PASS gestão: relatórios, distribuição, regra desativada/ativação, proposta/PDF, papéis e desafio MFA')
+ }
  assert.deepEqual(errors,[])
  console.log(`PASS login e ${rotas.length} rotas do núcleo; módulos ocultos; sem exceções no navegador`)
-} finally { await browser.close(); server.kill() }
+} catch(e){console.error('Contexto da falha:',page.url(),(await page.locator('body').innerText()).slice(0,2500),errors);throw e} finally { await browser.close(); server.kill() }

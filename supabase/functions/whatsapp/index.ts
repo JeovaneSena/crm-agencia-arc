@@ -18,7 +18,7 @@
  *
  * Escreve em `mensagens_whatsapp` com a service_role; a equipe só lê.
  */
-import { apagar, apagarMidias, assinarMidia, atualizar, inserir, listarMidias, rpc, selecionar, subirMidia } from '../_shared/db.ts'
+import { apagarMidias, assinarMidia, atualizar, inserir, listarMidias, rpc, selecionar, subirMidia } from '../_shared/db.ts'
 import { contatoComOrigem } from '../_shared/origem.ts'
 import { UAZAPI } from '../_shared/uazapi.ts'
 import { avaliarWebhook } from '../_shared/whatsapp.ts'
@@ -280,16 +280,21 @@ async function rotaApagarPessoa(req: Request): Promise<Response> {
   if (!usuario) return json({ ok: false, motivo: 'sem_sessao' }, 401)
   if (usuario.papel !== 'gestor') return json({ ok: false, motivo: 'somente_gestor' }, 403)
 
-  const corpo = await req.json().catch(() => ({})) as { contato_id?: string }
+  const corpo = await req.json().catch(() => ({})) as { contato_id?: string;modo?:string }
   const contatoId = String(corpo.contato_id ?? '').trim()
   if (!UUID.test(contatoId)) return json({ ok: false, motivo: 'contato_invalido' }, 400)
   if (!(await selecionar(`contatos_dados?select=id&id=eq.${contatoId}&limit=1`)).length) return json({ ok: false, motivo: 'nao_encontrada' }, 404)
 
+  if(corpo.modo && !['remover','anonimizar'].includes(corpo.modo))return json({ok:false,motivo:'modo_invalido'},400)
+  const privHeaders={apikey:Deno.env.get('SUPABASE_ANON_KEY')??'',Authorization:req.headers.get('authorization')??'','Content-Type':'application/json'}
+  const preparou=await fetch(`${Deno.env.get('SUPABASE_URL')}/rest/v1/rpc/privacidade_preparar`,{method:'POST',headers:privHeaders,body:JSON.stringify({p_contato:contatoId})})
+  if(!preparou.ok)return json({ok:false,motivo:'envio_em_curso_ou_sem_permissao'},409)
   let midias = 0
   try { midias = await apagarMidias(await listarMidias(contatoId)) }
   catch (e) { console.error('apagar midias:', e instanceof Error ? e.message : 'erro'); return json({ ok: false, motivo: 'falha_na_midia' }, 500) }
 
-  await apagar('contatos_dados', `id=eq.${contatoId}`)
+  const apagou=await fetch(`${Deno.env.get('SUPABASE_URL')}/rest/v1/rpc/${corpo.modo==='anonimizar'?'privacidade_anonimizar':'privacidade_remover'}`,{method:'POST',headers:{apikey:Deno.env.get('SUPABASE_ANON_KEY')??'',Authorization:req.headers.get('authorization')??'','Content-Type':'application/json'},body:JSON.stringify({p_contato:contatoId,p_confirmacao:corpo.modo==='anonimizar'?'ANONIMIZAR DADOS':'REMOVER DADOS'})})
+  if(!apagou.ok)return json({ok:false,motivo:'falha_na_remocao'},409)
   console.log(`pessoa apagada: ${contatoId} por ${usuario.id} (${midias} arquivo(s))`)
   return json({ ok: true, midias })
 }

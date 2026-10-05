@@ -2,6 +2,7 @@ import { supabase } from './supabase'
 import type { LeadStatus } from '../types'
 
 export interface Oportunidade {
+  fechamento_previsto?: string | null
   id: string; contato_id: string; nome: string; status: LeadStatus
   valor_proposta: number | null; servicos_contratados: string[]; escopo: string
   fechado_em: string | null; cancelado_em: string | null; motivo_cancelamento: string | null

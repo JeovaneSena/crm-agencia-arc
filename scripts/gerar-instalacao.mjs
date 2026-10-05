@@ -14,6 +14,7 @@ const base = resolve(import.meta.dirname, '..')
 
 // Módulos que já existem na base.
 const MODULOS = {
+  propostas: {migracoes:['0036_modulo_propostas'],funcoes:[],compartilhados:[],scripts:[]},
   captacao: {
     migracoes: ['0025_captacao_de_formularios', '0026_origens_e_relatorio'],
     funcoes: ['captacao'],
@@ -23,7 +24,7 @@ const MODULOS = {
   conversas: {
     migracoes: ['0007_modulo_conversas', '0012_retencao_de_midia', '0013_respostas_rapidas', '0014_notas_internas', '0015_assumir_e_transferir', '0016_adiar_conversa', '0024_automacoes_de_envio'],
     funcoes: ['whatsapp', 'automacoes'],
-    compartilhados: ['uazapi.ts', 'whatsapp.ts', 'origem.ts', 'gancho.ts', 'sessao.ts', 'conversas_test.ts', 'optout.ts', 'optout_test.ts', 'vigia.ts', 'vigia_test.ts', 'automacoes.ts', 'automacoes_test.ts', 'meta-api.ts', 'meta-protocolo.ts', 'anexos.ts', 'anexos_test.ts'],
+    compartilhados: [['gestao_canais_conversas.ts','gestao_canais.ts'],'uazapi.ts', 'whatsapp.ts', 'origem.ts', 'gancho.ts', 'sessao.ts', 'conversas_test.ts', 'optout.ts', 'optout_test.ts', 'vigia.ts', 'vigia_test.ts', 'automacoes.ts', 'automacoes_test.ts', 'meta-api.ts', 'meta-protocolo.ts', 'anexos.ts', 'anexos_test.ts'],
     arquivos: ['scripts/vigia-worker.mjs', 'scripts/automacoes-worker.mjs'],
     scripts: ['test:automacoes', 'test:automacoes:db:rehearsal', 'test:automacoes:db:apply', 'test:conversas', 'test:optout', 'test:vigia', 'test:anexos', 'test:conversas:db:rehearsal', 'test:conversas:db:apply', 'test:retencao:db:rehearsal', 'test:retencao:db:apply', 'test:respostas:db:rehearsal', 'test:respostas:db:apply', 'test:notas:db:rehearsal', 'test:notas:db:apply', 'test:conversa-dono:db:rehearsal', 'test:conversa-dono:db:apply', 'test:adiar:db:rehearsal', 'test:adiar:db:apply', 'test:ui:conversas'],
   },
@@ -32,7 +33,7 @@ const MODULOS = {
     migracoes: ['0009_modulo_assistente', '0022_volta_ao_assistente', '0027_assistente_seguro'],
     funcoes: [],
     // `gancho_assistente.ts` ocupa o lugar do `gancho.ts` vazio do módulo conversas.
-    compartilhados: ['llm.ts', 'seguranca_ia.ts', 'seguranca_ia_test.ts', 'consumo_ia.ts', 'consumo_ia_test.ts', 'extras_ia.ts', 'gancho_assistente.ts', 'revisao_ia.ts', 'revisao_ia_test.ts', 'assistente.ts', 'assistente_prompt.ts', 'assistente_test.ts', ['gancho_assistente.ts', 'gancho.ts']],
+    compartilhados: [['gestao_ia_assistente.ts','gestao_ia.ts'],'llm.ts', 'seguranca_ia.ts', 'seguranca_ia_test.ts', 'consumo_ia.ts', 'consumo_ia_test.ts', 'extras_ia.ts', 'gancho_assistente.ts', 'revisao_ia.ts', 'revisao_ia_test.ts', 'assistente.ts', 'assistente_prompt.ts', 'assistente_test.ts', ['gancho_assistente.ts', 'gancho.ts']],
     scripts: ['test:assistente', 'test:seguranca:ia', 'test:seguranca:db:rehearsal', 'test:seguranca:db:apply', 'test:assistente:db:rehearsal', 'test:assistente:db:apply', 'test:volta:db:rehearsal', 'test:volta:db:apply', 'test:ui:assistente'],
   },
   campanhas: {
@@ -59,13 +60,13 @@ const MODULOS = {
   },
 }
 const NUCLEO = {
-  migracoes: ['0001_base', '0002_nucleo_configuravel', '0003_contatos_proxima_reuniao', '0004_dashboard', '0005_funcoes_so_equipe', '0006_storage_perfil_logo', '0011_central_de_avisos', '0017_etiquetas', '0018_responsavel_e_lote', '0019_importar_contatos', '0020_tarefas', '0021_radar', '0023_recuperacao_de_falta', '0030_nicho_configuravel', '0031_modelos_e_preparacao', '0032_modelo_inicial'],
-  funcoes: ['equipe'],
-  compartilhados: ['db.ts', 'equipe-nucleo.ts', 'equipe_nucleo_test.ts', 'avisos.ts', 'avisos_test.ts'],
-  arquivos: ['index.html', 'eslint.config.js', 'tsconfig.json', 'tsconfig.app.json', 'tsconfig.node.json', 'vite.config.ts', 'vercel.json', 'package-lock.json', '.gitignore'],
+  migracoes: ['0001_base', '0002_nucleo_configuravel', '0003_contatos_proxima_reuniao', '0004_dashboard', '0005_funcoes_so_equipe', '0006_storage_perfil_logo', '0011_central_de_avisos', '0017_etiquetas', '0018_responsavel_e_lote', '0019_importar_contatos', '0020_tarefas', '0021_radar', '0023_recuperacao_de_falta', '0030_nicho_configuravel', '0031_modelos_e_preparacao', '0032_modelo_inicial', '0033_relatorios_de_gestao', '0034_auditoria', '0035_privacidade','0037_distribuicao','0038_regras_de_gestao','0039_seguranca_de_sessao','0040_diagnostico_operacional'],
+  funcoes: ['equipe','gestao'],
+  compartilhados: ['mfa.ts','gestao.ts','gestao_test.ts','gestao_canais.ts','gestao_ia.ts','db.ts', 'equipe-nucleo.ts', 'equipe_nucleo_test.ts', 'avisos.ts', 'avisos_test.ts'],
+  arquivos: ['docs/GESTAO_E_PRIVACIDADE.md','docs/OPERACAO_FASE_7.md','index.html', 'eslint.config.js', 'tsconfig.json', 'tsconfig.app.json', 'tsconfig.node.json', 'vite.config.ts', 'vercel.json', 'package-lock.json', '.gitignore'],
   pastas: ['src', 'public', 'supabase/email-templates'],
-  scripts: ['scripts/base-database.mjs', 'scripts/base-migrar.mjs', 'scripts/preflight-base.mjs', 'scripts/browser-check.mjs', 'scripts/auth-config.mjs', 'scripts/ensaio-local.mjs', 'scripts/lib/proibidos.mjs', 'scripts/lib/supabase-stub.sql', 'scripts/testes/lib_test.ts', 'scripts/testes/campos_test.ts'],
-  npm: ['dev', 'build', 'lint', 'preview', 'preflight', 'test:db:local', 'test:lib', 'test:avisos', 'test:campos', 'test:ui:nicho', 'test:nicho:db:rehearsal', 'test:nicho:db:apply', 'test:preparacao:db:rehearsal', 'test:preparacao:db:apply', 'auth:config', 'auth:aplicar', 'test:ui',
+  scripts: ['scripts/backup-base.mjs','scripts/testes/backup_test.mjs','scripts/gestao-worker.mjs','scripts/base-database.mjs', 'scripts/base-migrar.mjs', 'scripts/preflight-base.mjs', 'scripts/browser-check.mjs', 'scripts/auth-config.mjs', 'scripts/ensaio-local.mjs', 'scripts/lib/proibidos.mjs', 'scripts/lib/supabase-stub.sql', 'scripts/testes/lib_test.ts', 'scripts/testes/campos_test.ts'],
+  npm: ['test:gestao','test:backup','test:ui:gestao','dev', 'build', 'lint', 'preview', 'preflight', 'test:db:local', 'test:lib', 'test:avisos', 'test:campos', 'test:ui:nicho', 'test:nicho:db:rehearsal', 'test:nicho:db:apply', 'test:preparacao:db:rehearsal', 'test:preparacao:db:apply', 'auth:config', 'auth:aplicar', 'test:ui',
     ...['base', 'nucleo', 'contatos', 'dashboard', 'funcoes', 'storage', 'avisos', 'etiquetas', 'responsavel', 'importar', 'tarefas', 'radar', 'recuperacao'].flatMap(n => n === 'base'
       ? ['test:base:db:rehearsal', 'test:base:db:apply', 'test:base:db:verify']
       : [`test:${n}:db:rehearsal`, `test:${n}:db:apply`])],
@@ -175,9 +176,11 @@ try {
     writeFileSync(caminho, readFileSync(caminho, 'utf8').replaceAll('CRM', nomeHtml))
   }
 
+  let modificada=false
+  try{modificada=!!execFileSync('git',['status','--porcelain'],{cwd:base}).toString().trim()}catch{/* sem Git */}
   let revisao = 'desconhecida'
   try { revisao = execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: base }).toString().trim() } catch { /* sem git */ }
-  const instalacao = { slug, nome, dominio, fuso, nicho, modulos, migracoes, funcoes, base_revisao: revisao, gerada_em: new Date().toISOString().slice(0, 10) }
+  const instalacao = { slug, nome, dominio, fuso, nicho, modulos, migracoes, funcoes, base_revisao: revisao,base_modificada:modificada, gerada_em: new Date().toISOString().slice(0, 10) }
   writeFileSync(join(destino, 'instalacao.json'), JSON.stringify(instalacao, null, 2) + '\n')
 
   writeFileSync(join(destino, '.env.example'), `VITE_SUPABASE_URL=\nVITE_SUPABASE_ANON_KEY=\nVITE_MODULOS=${modulos.join(',')}\n`)
@@ -190,6 +193,9 @@ try {
   }).join('\n')
   const linhasFuncoes = funcoes.map(f => `supabase functions deploy ${f} --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt`).join('\n')
   const extras = [
+    '- Gestão: configure GESTAO_SEGREDO (24+ caracteres) nas Edge Functions e agende node scripts/gestao-worker.mjs a cada 5 minutos com SUPABASE_URL e GESTAO_SEGREDO no ambiente. Configure destinos públicos confiáveis de integração em GESTAO_WEBHOOKS apenas nos secrets. Regras e distribuição começam desligadas. Veja docs/GESTAO_E_PRIVACIDADE.md e docs/OPERACAO_FASE_7.md. Cópias exigem Auth e configuração da plataforma separados; prove a restauração num projeto descartável.',
+    '- Segurança: aplique 0039 antes das funções atualizadas. Confira o pre-request, RLS e Storage; quem cadastrar TOTP em /seguranca precisa completar o desafio antes de acessar o CRM. Teste também as APIs diretamente com AAL1 e AAL2.',
+    modulos.includes('propostas') && '- Propostas: a 0036 acrescenta modelos, itens, numeração atômica, validade e PDF. A emissão preserva o conteúdo; aceitar não encerra a oportunidade. O worker de gestão abre avisos de propostas vencidas.',
     `- Preparação: modelo inicial ${nicho}. No primeiro acesso, abra /preparacao, confira empresa, horários, catálogo e funil. Em Configurações → Personalização, defina campos e motivos de perda; exigências por etapa são conferidas no banco. O guia não ativa integrações nem substitui o aceite real.`,
     modulos.includes('captacao') && '- Captação: aplique a 0025 e a 0026 antes de publicar os webhooks. Publique `captacao` com `--no-verify-jwt`. Em Leads recebidos, o gestor cria uma fonte desligada, guarda o segredo no servidor do site e configura POST JSON ou formulário plano para o endereço exibido, com cabeçalho `X-Captacao-Segredo`. Envie `whatsapp` e `id_externo` único por envio (reenvios mantêm o mesmo ID), e opcionalmente `nome`, `email`, `empresa` e as cinco UTMs. Ative só depois de revisar; telefone repetido não altera o contato nem a primeira origem. Nunca coloque o segredo no JavaScript público. Para landing pages, configure o código de referência e as UTMs da fonte e inclua `[ref:codigo]` na mensagem do botão WhatsApp (exige conversas). Com campanhas, o webhook da Meta registra a origem de anúncios/publicações quando a Meta entrega referral. Consulte o relatório por origem em Leads recebidos.',
     modulos.includes('conversas') && '- Conversas: configure `WEBHOOK_SEGREDO`, `UAZAPI_API_URL` e `UAZAPI_TOKEN` nos secrets das Edge Functions; configure o webhook da uazapi para `https://<ref>.supabase.co/functions/v1/whatsapp` e teste conexão, recebimento e envio. Configure também `VIGIA_SEGREDO` (24+ caracteres) e agende `node scripts/vigia-worker.mjs` a cada 5 minutos, com `SUPABASE_URL` e `VIGIA_SEGREDO` no ambiente do agendador: é ele que avisa na Central quando o WhatsApp cai ou uma mensagem não sai; sem o agendamento esses avisos não aparecem.',

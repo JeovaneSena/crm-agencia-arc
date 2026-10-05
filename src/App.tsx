@@ -4,6 +4,10 @@ import RotaDeGestor from './components/RotaDeGestor'
 import Layout from './components/Layout'
 import Login from './pages/Login'
 import DefinirSenha from './pages/DefinirSenha'
+import Regras from './pages/Regras'
+import Seguranca from './pages/Seguranca'
+import Propostas from './pages/Propostas'
+import Gestao from './pages/Gestao'
 import Dashboard from './pages/Dashboard'
 import CRM from './pages/CRM'
 import Conversas from './pages/Conversas'
@@ -50,6 +54,8 @@ export default function App() {
             {moduloAtivo('campanhas') && <Route path="/campanhas/:id/editar" element={<NovaCampanha />} />}
             {moduloAtivo('campanhas') && <Route path="/campanhas/:id" element={<CampanhaDetalhe />} />}
             {moduloAtivo('casos') && <Route path="/casos" element={<Casos />} />}
+            {moduloAtivo('propostas') && <Route path="/propostas" element={<Propostas />} />}
+            <Route path="/seguranca" element={<Seguranca />} />
             <Route path="/agenda" element={<Agenda />} />
             <Route path="/radar" element={<Radar />} />
             <Route path="/tarefas" element={<Tarefas />} />
@@ -63,6 +69,8 @@ export default function App() {
                 e, se chegasse, o banco recusaria cada ação do mesmo jeito. */}
             <Route element={<RotaDeGestor />}>
               {moduloAtivo('melhorias') && <Route path="/melhorias-assistente" element={<MelhoriasAssistente />} />}
+              <Route path="/regras" element={<Regras />} />
+              <Route path="/gestao" element={<Gestao />} />
               <Route path="/usuarios" element={<Usuarios />} />
               {moduloAtivo('assistente') && <Route path="/assistente-ia" element={<Assistente />} />}
               {moduloAtivo('conversas') && <Route path="/automacoes" element={<Automacoes />} />}

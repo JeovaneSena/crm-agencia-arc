@@ -1,0 +1,14 @@
+import {destinoWebhook,processarSaidasGestao,type DepsGestao,type SaidaGestao} from './gestao.ts'
+import {segundoFatorConfirmado} from './mfa.ts'
+import {handler} from '../gestao/index.ts'
+function igual(a:unknown,b:unknown){if(JSON.stringify(a)!==JSON.stringify(b))throw Error(`${JSON.stringify(a)} != ${JSON.stringify(b)}`)}
+const saida:SaidaGestao={id:'saida',token:'token',contato_id:'contato',acao:{tipo:'webhook',destino:'erp'}}
+function deps(){const estados:string[]=[];let chamadas=0;const d:DepsGestao={reivindicar:()=>Promise.resolve([saida]),preparar:()=>Promise.resolve(null),iniciar:()=>Promise.resolve(true),enviar:()=>{chamadas++;return Promise.resolve('confirmacao')},finalizar:(_s,e)=>{estados.push(e);return Promise.resolve()}};return {d,estados,chamadas:()=>chamadas}}
+Deno.test('confirma uma saída uma vez',async()=>{const x=deps();const r=await processarSaidasGestao(x.d);igual(r.enviados,1);igual(x.chamadas(),1);igual(x.estados,['enviado'])})
+Deno.test('falha antes do HTTP não envia',async()=>{const x=deps();x.d.preparar=()=>Promise.reject(Error('Sem autorização'));await processarSaidasGestao(x.d);igual(x.chamadas(),0);igual(x.estados,['falhou'])})
+Deno.test('autorização revogada entre preparo e início cancela',async()=>{const x=deps();x.d.iniciar=()=>Promise.resolve(false);await processarSaidasGestao(x.d);igual(x.chamadas(),0);igual(x.estados,['cancelado'])})
+Deno.test('timeout após início fica incerto e nunca repete HTTP',async()=>{const x=deps();x.d.enviar=()=>Promise.reject(Error('timeout'));const r=await processarSaidasGestao(x.d);igual(r.falhas,1);igual(x.estados,['incerto'])})
+Deno.test('falha na persistência aparece no resultado do trabalhador',async()=>{const x=deps();x.d.finalizar=()=>Promise.reject(Error('Banco indisponível'));const r=await processarSaidasGestao(x.d);igual(r.erros,['saida']);igual(x.chamadas(),1)})
+Deno.test('destino só usa configuração do servidor, HTTPS e sem redirecionamento',()=>{igual(destinoWebhook('erp',{erp:'https://erp.example.invalid/eventos'}).hostname,'erp.example.invalid');for(const u of ['http://erp.example.invalid','https://127.0.0.1','https://10.0.0.1','https://[::1]','https://user:pass@erp.example.invalid','https://erp.example.invalid:8443','https://erp.local']){let falhou=false;try{destinoWebhook('erp',{erp:u})}catch{falhou=true}igual(falhou,true)}})
+Deno.test('MFA rejeita AAL1 e token malformado com fator verificado',()=>{const token=(aal:string)=>`x.${btoa(JSON.stringify({aal}))}.x`,u={factors:[{status:'verified'}]};igual(segundoFatorConfirmado(token('aal1'),u),false);igual(segundoFatorConfirmado(token('aal2'),u),true);igual(segundoFatorConfirmado('malformado',u),false);igual(segundoFatorConfirmado(token('aal1'),{factors:[{status:'unverified'}]}),true)})
+Deno.test('trabalhador sem segredo não acessa o banco',async()=>{const r=await handler(new Request('https://example.invalid/gestao/processar',{method:'POST'}));igual(r.status,401)})

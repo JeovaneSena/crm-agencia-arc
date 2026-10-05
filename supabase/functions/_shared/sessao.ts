@@ -2,6 +2,7 @@
  * A sessão de quem chama uma função pelo navegador: o usuário logado E ativo, ou null.
  * Conta desligada não usa as funções. O papel vem de `usuarios`, nunca do token.
  */
+import {segundoFatorConfirmado} from './mfa.ts'
 import { selecionar } from './db.ts'
 
 export interface Usuario { id: string; papel: string }
@@ -13,8 +14,9 @@ export async function usuarioDaSessao(req: Request): Promise<Usuario | null> {
     headers: { Authorization: `Bearer ${token}`, apikey: Deno.env.get('SUPABASE_ANON_KEY') ?? '' },
   })
   if (!r.ok) return null
-  const { id } = await r.json() as { id?: string }
-  if (!id) return null
+  const u=await r.json() as {id?:string;factors?:{status?:string}[]}
+  const {id}=u
+  if(!id||!segundoFatorConfirmado(token,u))return null
   const perfil = (await selecionar<{ papel: string; ativo: boolean }>(`usuarios?select=papel,ativo&id=eq.${id}&limit=1`))[0]
   return perfil?.ativo ? { id, papel: perfil.papel } : null
 }

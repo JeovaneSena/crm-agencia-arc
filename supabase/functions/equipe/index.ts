@@ -15,6 +15,7 @@
  * _SERVICE_ROLE_KEY o Supabase já entrega. Publicar com `--no-verify-jwt`:
  * a sessão é conferida aqui, no Auth, e o papel, no banco.
  */
+import {segundoFatorConfirmado} from '../_shared/mfa.ts'
 import { APP_URL, atenderEquipe, UUID } from '../_shared/equipe-nucleo.ts'
 
 const URL_BASE = Deno.env.get('SUPABASE_URL')!
@@ -41,8 +42,8 @@ async function usuarioDaSessao(req: Request): Promise<string | null> {
   if (!token) return null
   const r = await fetch(`${URL_BASE}/auth/v1/user`, { headers: { apikey: ANON, Authorization: `Bearer ${token}` } })
   if (!r.ok) return null
-  const u = await r.json() as { id?: string }
-  return u.id && UUID.test(u.id) ? u.id : null
+  const u = await r.json() as {id?:string;factors?:{status?:string}[]}
+  return segundoFatorConfirmado(token,u) && u.id && UUID.test(u.id) ? u.id : null
 }
 
 Deno.serve(async (req) => {

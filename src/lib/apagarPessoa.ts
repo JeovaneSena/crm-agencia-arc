@@ -95,12 +95,12 @@ async function contar(pessoa: PessoaResumo): Promise<Previsao> {
  * arquivo é `{contato_id}/...`, então apagar a ficha antes tiraria a única forma
  * de saber quais arquivos eram dela.
  */
-export async function apagarPessoa(leadId: string): Promise<number> {
+export async function apagarPessoa(leadId: string, modo:'remover'|'anonimizar'='remover'): Promise<number> {
   // Sem o módulo de conversas não há arquivos no Storage: o `ON DELETE CASCADE`
   // leva ficha, reuniões e oportunidades. Só o gestor apaga (policy do banco).
   if (!moduloAtivo('conversas')) {
-    const { error, count } = await supabase.from('contatos_dados').delete({ count: 'exact' }).eq('id', leadId)
-    if (error || !count) throw new Error(error?.message ?? 'falhou')
+    const {error}=await supabase.rpc(modo==='anonimizar'?'privacidade_anonimizar':'privacidade_remover',{p_contato:leadId,p_confirmacao:modo==='anonimizar'?'ANONIMIZAR DADOS':'REMOVER DADOS'})
+    if(error)throw new Error(error.message)
     return 0
   }
   const { data: sessao } = await supabase.auth.getSession()
@@ -112,7 +112,7 @@ export async function apagarPessoa(leadId: string): Promise<number> {
     {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contato_id: leadId }),
+      body: JSON.stringify({ contato_id: leadId,modo }),
     },
   )
   const d = await r.json().catch(() => null)

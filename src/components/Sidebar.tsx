@@ -25,6 +25,7 @@ interface ItemNav {
 /** `gestor: true` some da barra para consultor. Esconder é cortesia com quem
  *  olha — quem recusa é o banco, nas policies e em `exigir_gestor`. */
 const MENU_USUARIO: ItemNav[] = [
+  {to:'/seguranca',label:'Segurança da conta',icon:Settings},
   { to: '/assistente-ia', label: AGENTE_PAGINA, icon: Bot, gestor: true, modulo: 'assistente' },
 ]
 
@@ -36,6 +37,7 @@ const NAV_GROUPS: { label: string; items: ItemNav[] }[] = [
       { to: '/crm', label: 'CRM', icon: KanbanSquare },
       { to: '/conversas', label: 'Conversas', icon: MessagesSquare, modulo: 'conversas' },
       { to: '/campanhas', label: 'Campanhas', icon: Megaphone, modulo: 'campanhas' },
+      { to:'/propostas',label:'Propostas',icon:ClipboardList,modulo:'propostas' },
       { to: '/agenda', label: 'Agenda', icon: CalendarDays },
       { to: '/radar', label: 'Radar', icon: Radar },
       { to: '/tarefas', label: 'Tarefas', icon: ListChecks },
@@ -53,6 +55,8 @@ const NAV_GROUPS: { label: string; items: ItemNav[] }[] = [
       { to: '/projetos', label: 'Projetos', icon: FolderKanban, modulo: 'projetos' },
       { to: '/equipe', label: 'Equipe', icon: BriefcaseBusiness },
       { to: '/servicos', label: 'Serviços', icon: ClipboardList },
+      {to:'/regras',label:'Regras de gestão',icon:ListChecks,gestor:true},
+      { to: '/gestao', label: 'Relatórios e auditoria', icon: ClipboardList, gestor:true },
       { to: '/usuarios', label: 'Usuários', icon: UsersRound, gestor: true },
       { to: '/automacoes', label: 'Automações', icon: Bell, gestor: true, modulo: 'conversas' },
       { to: '/configuracoes', label: 'Configurações', icon: Settings, gestor: true },

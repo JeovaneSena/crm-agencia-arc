@@ -87,6 +87,9 @@ function DetalheConsulta({
     onFechar()
   }
 
+  const handleConfirmarPresenca=async()=>{
+    setDandoBaixa(true);setErro('');try{const r=await supabase.rpc('reuniao_confirmar',{p_id:consulta.id});if(r.error)throw r.error;onCancelada({...consulta,confirmada_em:new Date().toISOString()});onFechar()}catch{setErro('Não foi possível confirmar a presença. Atualize a agenda.')}finally{setDandoBaixa(false)}
+  }
   const handleCancelar = async () => {
     setCancelando(true); setErro('')
     const { error } = await supabase.from('reunioes')
@@ -148,6 +151,7 @@ function DetalheConsulta({
                 </span>
               )}
             </div>
+            {consulta.status==='agendada'&&!jaAconteceu&&<div>{consulta.confirmada_em?<p>Presença confirmada</p>:<button disabled={dandoBaixa} onClick={()=>void handleConfirmarPresenca()}>Confirmar presença</button>}</div>}
             {consulta.observacoes && (
               <div style={{ fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.6, background: 'var(--surface-subtle)', borderRadius: 8, padding: '9px 12px', marginTop: 2 }}>
                 {consulta.observacoes}
