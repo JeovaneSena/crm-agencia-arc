@@ -116,7 +116,7 @@ export interface DepsWebhook {
   contatoPorWhatsapp(whatsapp: string): Promise<string | null>
   revogarConsentimento(contatoId: string, fonte: string): Promise<void>
   /** Grava a mensagem recebida na conversa (cria o contato se for novo). Idempotente por id da Meta. */
-  gravarRecebida(whatsapp: string, idExterno: string, tipo: string, texto: string | null): Promise<void>
+  gravarRecebida(whatsapp: string, idExterno: string, tipo: string, texto: string | null, referral?: unknown): Promise<void>
 }
 
 export async function tratarWebhook(deps: DepsWebhook, corpo: unknown, waba: string, numero: string): Promise<{ status: number; mensagens: number; optouts: number }> {
@@ -139,7 +139,7 @@ export async function tratarWebhook(deps: DepsWebhook, corpo: unknown, waba: str
       const contato = await deps.contatoPorWhatsapp(m.whatsapp)
       if (contato) { await deps.revogarConsentimento(contato, 'Pediu para parar de receber mensagens (resposta ao WhatsApp).'); r.optouts++ }
     }
-    await deps.gravarRecebida(m.whatsapp, m.idExterno, m.tipo, m.texto)
+    await deps.gravarRecebida(m.whatsapp, m.idExterno, m.tipo, m.texto, ev.dados.referral)
     r.mensagens++
   }
   return r

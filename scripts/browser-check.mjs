@@ -9,9 +9,10 @@ const comConversas = process.argv.includes('--conversas')
 const comProjetos = process.argv.includes('--projetos')
 const comAssistente = process.argv.includes('--assistente')
 const comCampanhas = process.argv.includes('--campanhas')
+const comCaptacao = process.argv.includes('--captacao')
 const supabaseUrl = 'https://crm-base-test.supabase.co'
 const project = 'crm-base-test'
-const modulosLigados = [(comConversas || comAssistente || comCampanhas) && 'conversas', comProjetos && 'projetos', comAssistente && 'assistente', comCampanhas && 'campanhas'].filter(Boolean).join(',')
+const modulosLigados = [(comConversas || comAssistente || comCampanhas) && 'conversas', comProjetos && 'projetos', comAssistente && 'assistente', comCampanhas && 'campanhas', comCaptacao && 'captacao'].filter(Boolean).join(',')
 // Um servidor sobrando de um teste anterior responderia no lugar do nosso, com outros módulos ligados.
 if (await fetch(base).then(() => true, () => false)) throw Error('A porta 5187 já está em uso (servidor de um teste anterior?). Encerre-o antes de rodar.')
 const server = spawn(process.execPath, ['node_modules/vite/bin/vite.js', '--host', '127.0.0.1', '--port', '5187', '--strictPort'], { stdio: 'ignore', env: { ...process.env, VITE_MODULOS: modulosLigados, VITE_SUPABASE_URL: supabaseUrl, VITE_SUPABASE_ANON_KEY: 'chave-ficticia-para-testes' } })
@@ -26,6 +27,8 @@ let provider='uazapi', metaConsent=false, metaSent=null, papel='gestor'
 let connectionState='conectado'
 const now = new Date().toISOString()
 const lead = { id:'00000000-0000-4000-8000-000000000002', nome:'Contato de teste', whatsapp:'5511999999999', empresa:'Empresa Teste', email:'teste@example.invalid', status:'ganho', interesses:['Serviço A'], interesses_texto:'Serviço A', resumo_conversa:null, anotacoes:null, created_at:now, inicio_atendimento:now, ultima_mensagem:null, minutos_ultima_mensagem:null, ultima_reuniao:null, proxima_reuniao:null, cliente_desde:now }
+let fontesCaptacao=[{id:'00000000-0000-4000-8000-000000000025',nome:'Site de teste',ativa:false}]
+const recebimentosCaptacao=[{id:'rc1',fonte_id:fontesCaptacao[0].id,resultado:'criado',motivo:null,recebido_em:now,utm:{utm_source:'google',utm_campaign:'outubro'},contato_id:lead.id,contato:{nome:lead.nome}},{id:'rc2',fonte_id:fontesCaptacao[0].id,resultado:'recusado',motivo:'telefone_invalido',recebido_em:now,utm:{},contato_id:null,contato:null}]
 const opportunity = { id:'opp-inicial', contato_id:lead.id, nome:'Venda inicial', status:'ganho', valor_proposta:1250, servicos_contratados:['Serviço A'], escopo:'Escopo inicial', fechado_em:now, cancelado_em:null, created_at:now, updated_at:now, contato:lead }
 const services = ['Reunião inicial','Serviço A','Serviço B'].map((nome,i)=>({ id:String(i), nome, descricao:'Descrição curta', descricao_longa:null, ativo:true, arquivado:false, e_reuniao_previa:i===0, exige_reuniao_previa:i!==0, preco_a_partir_de:null, duracao_minutos:30 }))
 const professional = { id:'00000000-0000-4000-8000-000000000004',nome:'Ana',sobrenome:'Silva',cor:'#1E6E8C',ativo:true,created_at:now,updated_at:now }
@@ -68,6 +71,9 @@ const page = await context.newPage()
 page.on('pageerror',e=>errors.push(e.message))
 const dias = Array.from({length:7},(_,i)=>i)
 const tabelas = {
+ captacao_fontes:()=>fontesCaptacao,
+ captacao_recebimentos:()=>recebimentosCaptacao,
+ contato_atribuicoes:()=>[{utm:{utm_source:'google',utm_campaign:'outubro'},recebida_em:now,fonte:{nome:'Site de teste'}}],
  avisos:()=>avisos.filter(a=>!a.resolvido_em), tarefas:()=>tarefasMock, radar_negocios:()=>radarMock, etiquetas:()=>ETQ, contato_etiquetas:()=>paresEtq, contatos:()=>[lead], reunioes:()=>[meeting], profissionais:()=>[professional], catalogo_servicos:()=>services,
  oportunidades:()=>[opportunity,...abertasMock], etapas_funil:()=>[], horario_comercial:()=>[],
  profissional_horarios:()=>dias.map(d=>({id:`h${d}`,profissional_id:professional.id,dia_semana:d,hora_inicio:'08:00',hora_fim:'18:00',ativo:true})),
@@ -297,7 +303,7 @@ try {
  assert.deepEqual(importado.p_linhas,[{nome:'Ana Souza',whatsapp:'5511987654321',empresa:null,email:'ana@exemplo.com'},{nome:'Caio',whatsapp:'5521999990000',empresa:null,email:null}],'linhas enviadas ao banco')
  console.log('PASS importar planilha')
  await page.goto(base+'/')
- const desligados=[...(comCampanhas?[]:['Campanhas']),...(comAssistente?[]:['Assistente comercial de IA']),...(comProjetos?[]:['Projetos']),...((comConversas||comAssistente||comCampanhas)?[]:['Conversas'])]
+ const desligados=[...(comCaptacao?[]:['Leads recebidos']),...(comCampanhas?[]:['Campanhas']),...(comAssistente?[]:['Assistente comercial de IA']),...(comProjetos?[]:['Projetos']),...((comConversas||comAssistente||comCampanhas)?[]:['Conversas'])]
  for(const modulo of desligados)
   assert.equal(await page.getByRole('link',{name:modulo,exact:true}).count(),0,`Módulo ${modulo} apareceu sem estar ligado`)
  if(modulosLigados.includes('conversas')) {
@@ -580,6 +586,72 @@ try {
   await page.getByRole('button',{name:'Apagar promo_outubro'}).click(); await page.getByRole('button',{name:'Apagar',exact:true}).click(); await page.getByText('Modelo apagado.').waitFor()
   assert.deepEqual(apagado,{nome:'promo_outubro'})
   console.log('PASS campanhas: modelos da Meta')
+ }
+ if(comCaptacao){
+  let criadaFonte=null,configuradaFonte=null
+  await context.route('**/rest/v1/captacao_recebimentos?*',async r=>{
+   const url=new URL(r.request().url());let data=recebimentosCaptacao
+   if(url.searchParams.get('resultado')) data=data.filter(x=>x.resultado===url.searchParams.get('resultado').slice(3))
+   await r.fulfill({status:200,contentType:'application/json',headers:{'content-range':`0-${data.length-1}/${data.length}`},body:JSON.stringify(data)})
+  })
+  await context.route('**/rest/v1/rpc/captacao_criar_fonte',async r=>{
+   criadaFonte=r.request().postDataJSON()
+   const id='00000000-0000-4000-8000-000000000026'
+   fontesCaptacao.push({id,nome:criadaFonte.p_nome,ativa:false})
+   await r.fulfill({status:200,contentType:'application/json',body:JSON.stringify(id)})
+  })
+  await context.route('**/rest/v1/rpc/captacao_configurar_fonte',async r=>{
+   configuradaFonte=r.request().postDataJSON()
+   fontesCaptacao=fontesCaptacao.map(f=>f.id===configuradaFonte.p_id?{...f,ativa:configuradaFonte.p_ativa}:f)
+   await r.fulfill({status:200,contentType:'application/json',body:''})
+  })
+  let referenciaSalva=null, periodoRelatorio=null
+  await context.route('**/rest/v1/rpc/captacao_configurar_referencia',async r=>{referenciaSalva=r.request().postDataJSON();await r.fulfill({status:200,contentType:'application/json',body:''})})
+  await context.route('**/rest/v1/rpc/captacao_relatorio',async r=>{periodoRelatorio=r.request().postDataJSON();await r.fulfill({status:200,contentType:'application/json',body:JSON.stringify([{canal:'referencia',fonte:'Landing de teste',origem:'google',campanha:'outubro',conteudo:'ad-26',leads:3,ganhos:2,valor_ganho:200}])})})
+  await page.goto(base+'/captacao')
+  await page.getByRole('heading',{name:'Leads recebidos'}).waitFor()
+  await page.getByText('Telefone inválido ou sem DDD',{exact:false}).waitFor()
+  assert((await page.locator('main').innerText()).includes('campaign: outubro'),'UTMs ausentes')
+  await page.getByLabel('Resultado',{exact:true}).selectOption('recusado')
+  await page.waitForTimeout(200)
+  assert.equal(await page.locator('.captacao-recebimentos li').count(),1,'filtro não aplicado ao banco')
+  await page.getByLabel('Nome da fonte').fill('Landing de teste')
+  await page.getByRole('button',{name:'Criar fonte',exact:true}).click()
+  await page.getByLabel('Segredo da fonte',{exact:true}).waitFor()
+  const segredo=await page.getByLabel('Segredo da fonte',{exact:true}).inputValue()
+  const {createHash}=await import('node:crypto')
+  assert.equal(criadaFonte.p_hash,createHash('sha256').update(segredo).digest('hex'),'segredo não foi armazenado como hash')
+  assert(!JSON.stringify(criadaFonte).includes(segredo),'segredo puro enviado ao banco')
+  assert.equal(criadaFonte.p_nome,'Landing de teste')
+  await page.getByRole('button',{name:'Já guardei o segredo'}).click()
+  await page.getByRole('button',{name:'Ativar Landing de teste',exact:true}).click()
+  await page.getByRole('button',{name:'Desligar Landing de teste',exact:true}).waitFor()
+  assert(configuradaFonte.p_ativa===true&&configuradaFonte.p_hash===null,'ativação não chegou ao banco')
+  await page.getByRole('button',{name:'Novo segredo de Landing de teste',exact:true}).click()
+  await page.getByLabel('Segredo da fonte',{exact:true}).waitFor()
+  assert.notEqual(await page.getByLabel('Segredo da fonte',{exact:true}).inputValue(),segredo,'renovação repetiu segredo')
+  await page.getByRole('button',{name:'Consultar origens',exact:true}).click()
+  await page.getByRole('cell',{name:'ad-26',exact:true}).waitFor()
+  assert(new Date(periodoRelatorio.p_fim)>new Date(periodoRelatorio.p_inicio),'período inválido')
+  await page.getByText('Origem da landing page · Landing de teste',{exact:true}).click()
+  await page.getByLabel('Código de Landing de teste',{exact:true}).fill('landing-outubro')
+  await page.getByLabel('source de Landing de teste',{exact:true}).fill('google')
+  await page.getByRole('button',{name:'Salvar referência de Landing de teste',exact:true}).click()
+  await page.getByText('Referência salva.',{exact:true}).waitFor()
+  assert.equal(referenciaSalva.p_codigo,'landing-outubro')
+  assert.equal(referenciaSalva.p_utm.utm_source,'google')
+  await page.getByText('Olá! Quero saber mais. [ref:landing-outubro]',{exact:true}).waitFor()
+  await page.goto(base+`/leads/${lead.id}`)
+  await page.getByRole('region',{name:'Primeira origem do contato'}).waitFor()
+  assert((await page.getByRole('region',{name:'Primeira origem do contato'}).innerText()).includes('outubro'),'ficha sem origem')
+  papel='consultor'
+  await page.goto(base+'/captacao')
+  await page.getByRole('heading',{name:'Leads recebidos'}).waitFor()
+  await page.waitForTimeout(300)
+  assert.equal(await page.getByRole('button',{name:'Criar fonte',exact:true}).count(),0,'consultor configura fonte')
+  assert.equal(await page.locator('.captacao-recebimentos li').count(),2,'consultor não vê recebimentos')
+  papel='gestor'
+  console.log('PASS captação: recebimentos, filtro, criação, hash, ativação, renovação, referência, relatório, primeira origem e consultor')
  }
  if(comProjetos){
   // Módulo projetos: quadro por etapa, cartão da venda ganha e edição com trava otimista.

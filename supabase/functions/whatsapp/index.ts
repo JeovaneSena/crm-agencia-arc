@@ -19,6 +19,7 @@
  * Escreve em `mensagens_whatsapp` com a service_role; a equipe só lê.
  */
 import { apagar, apagarMidias, assinarMidia, atualizar, inserir, listarMidias, rpc, selecionar, subirMidia } from '../_shared/db.ts'
+import { contatoComOrigem } from '../_shared/origem.ts'
 import { UAZAPI } from '../_shared/uazapi.ts'
 import { avaliarWebhook } from '../_shared/whatsapp.ts'
 import { usuarioDaSessao } from '../_shared/sessao.ts'
@@ -82,7 +83,7 @@ async function rotaWebhook(req: Request): Promise<Response> {
   }
 
   const recebida = lido.mensagem
-  const contatoId = await acharOuCriarContato(recebida.whatsapp)
+  const contatoId = await acharOuCriarContato(recebida.whatsapp, recebida.texto)
   const parada = classificarOptOut(recebida.texto)
   if (parada !== 'nenhum') await rpc('automacao_bloquear', { p_contato: contatoId, p_marketing: parada === 'pedido' })
   const criadas = await inserir<{ id: string }>('mensagens_whatsapp', {
@@ -121,11 +122,14 @@ async function guardarMidia(contatoId: string, mensagemId: string, midia: NonNul
   await atualizar('mensagens_whatsapp', `id=eq.${mensagemId}`, { midia_url: caminho })
 }
 
-async function acharOuCriarContato(whatsapp: string): Promise<string> {
+async function acharOuCriarContato(whatsapp: string, texto: string | null): Promise<string> {
+  const campos = await camposDoContatoNovo()
+  const atribuido = await contatoComOrigem(whatsapp, texto, null, campos)
+  if (atribuido) return atribuido
   const achar = async () => (await selecionar<{ id: string }>(`contatos_dados?select=id&whatsapp=eq.${whatsapp}&limit=1`))[0]?.id
   const existente = await achar()
   if (existente) return existente
-  const criados = await inserir<{ id: string }>('contatos_dados', { whatsapp, status: 'novo_lead', ...await camposDoContatoNovo() }, true, 'whatsapp')
+  const criados = await inserir<{ id: string }>('contatos_dados', { whatsapp, status: 'novo_lead', ...campos }, true, 'whatsapp')
   // Corrida: outra execução criou entre o select e o insert.
   return criados[0]?.id ?? (await achar())!
 }

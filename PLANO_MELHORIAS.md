@@ -75,6 +75,12 @@ Data: 03/10/2026. Referência: repositório público `melgarafael/DeskcommCRM`, 
     `docs/ACEITE_FASE_3.md`. Variáveis vazias bloqueiam mensagens também quando inseridas
     em um texto maior. A fase permanece com aceite real pendente até os ambientes existirem.
 
+- **Fase 4 (de onde vem o cliente): implementação local concluída em 05/10/2026; aceite real pendente.**
+  - Captação de formulários (0025): fontes desligadas por padrão, segredo por fonte armazenado como hash, POST JSON/formulário plano, validação, limite, idempotência, recebimentos e recusas na Central.
+  - Origens e relatório (0026): código `[ref:]` com UTMs por landing page, referral de anúncios/publicações Meta, primeira origem na ficha e relatório de leads, negócios ganhos e valores por fonte/campanha/conteúdo. Contatos antigos não recebem atribuição nova; uma pessoa com vários negócios não multiplica leads.
+  - Módulo opcional `captacao`, independente de WhatsApp; referências usam conversas, Meta usa campanhas. Gerador conserva o isolamento e liga o gancho apenas nas instalações com captação.
+  - Ver `docs/MODULO_CAPTACAO.md` e `docs/ACEITE_FASE_4.md`. Não houve aplicação em Supabase nem publicação em produção. Custos de anúncios, ROAS e Conversions API não integram esta fase.
+
 ## O que foi revisado
 
 O DeskcommCRM tem cerca de 990 arquivos TypeScript, 188 tabelas em
@@ -300,7 +306,7 @@ Meta (a pendência que falta para fechar o módulo campanhas).
 **Fase 3 — Nenhum lead morre em silêncio (IMPLEMENTADA LOCALMENTE; ACEITE REAL PENDENTE).** Radar, tarefas e volta automática ao assistente (feitos);
 lembretes de reunião (portar a 0032), follow-up v1 e recuperação de falta.
 
-**Fase 4 — De onde vem o cliente.** Captação de formulários com UTM, código `[ref:]`
+**Fase 4 — De onde vem o cliente (IMPLEMENTADA LOCALMENTE; ACEITE REAL PENDENTE).** Captação de formulários com UTM, código `[ref:]`
 para landing page, origem do clique-para-WhatsApp (se as conversas tiverem a Meta) e
 relatório por origem. É o que mostra ao cliente de tráfego pago quanto cada anúncio
 trouxe.

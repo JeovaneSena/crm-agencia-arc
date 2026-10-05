@@ -74,7 +74,14 @@
     "test:recuperacao:db:apply": "node scripts/base-migrar.mjs apply database/base/0023_recuperacao_de_falta.sql database/base/0023_check.sql --confirm",
     "test:automacoes": "npx --yes deno@2 test --allow-env supabase/functions/_shared/automacoes_test.ts",
     "test:automacoes:db:rehearsal": "node scripts/base-migrar.mjs rehearse database/base/0024_automacoes_de_envio.sql database/base/0024_check.sql",
-    "test:automacoes:db:apply": "node scripts/base-migrar.mjs apply database/base/0024_automacoes_de_envio.sql database/base/0024_check.sql --confirm"
+    "test:automacoes:db:apply": "node scripts/base-migrar.mjs apply database/base/0024_automacoes_de_envio.sql database/base/0024_check.sql --confirm",
+    "test:captacao": "npx --yes deno@2 test --allow-env supabase/functions/_shared/captacao_test.ts supabase/functions/_shared/origem_integracao_test.ts",
+    "test:captacao:db:rehearsal": "node scripts/base-migrar.mjs rehearse database/base/0025_captacao_de_formularios.sql database/base/0025_check.sql",
+    "test:captacao:db:apply": "node scripts/base-migrar.mjs apply database/base/0025_captacao_de_formularios.sql database/base/0025_check.sql --confirm",
+    "test:ui:captacao": "node scripts/browser-check.mjs --captacao",
+    "test:origens:db:rehearsal": "node scripts/base-migrar.mjs rehearse database/base/0026_origens_e_relatorio.sql database/base/0026_check.sql",
+    "test:origens:db:apply": "node scripts/base-migrar.mjs apply database/base/0026_origens_e_relatorio.sql database/base/0026_check.sql --confirm",
+    "test:captacao:webhooks": "npx --yes deno@2 test --allow-env --allow-read scripts/testes/captacao_webhooks_test.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

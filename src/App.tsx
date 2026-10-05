@@ -25,6 +25,7 @@ import Avisos from './pages/Avisos'
 import Tarefas from './pages/Tarefas'
 import Radar from './pages/Radar'
 import Automacoes from './pages/Automacoes'
+import Captacao from './pages/Captacao'
 import { moduloAtivo } from './lib/modulos'
 
 export default function App() {
@@ -63,6 +64,7 @@ export default function App() {
               <Route path="/configuracoes" element={<Configuracoes />} />
             </Route>
             <Route path="/leads" element={<Leads />} />
+            {moduloAtivo('captacao') && <Route path="/captacao" element={<Captacao />} />}
             <Route path="/clientes" element={<Clientes />} />
             <Route path="/leads/:id" element={<LeadDetail />} />
           </Route>

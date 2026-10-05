@@ -339,3 +339,14 @@ Deno.test('rota modelos: a lista de gestão traz todas as categorias e estados',
     { id: '2', name: 'b', language: 'pt_BR', status: 'REJECTED', category: 'MARKETING', rejected_reason: 'ABUSIVE_CONTENT', components: [{ type: 'BODY', text: 'Oi' }] },
   ] } }) })
 })
+
+Deno.test('webhook: encaminha referral da conta/número correto junto à mensagem',async()=>{
+ const {deps}=webhook()
+ const recebidas: unknown[]=[]
+ deps.gravarRecebida=(_w,_id,_t,_texto,referral)=>{recebidas.push(referral);return Promise.resolve()}
+ const referral={source_type:'ad',source_id:'123',ctwa_clid:'click_26'}
+ await tratarWebhook(deps,corpo({messages:[{id:'in-ref',from:'5511900000009',timestamp:ts(),type:'text',text:{body:'Olá'},referral}]}),'456','123')
+ assert(JSON.stringify(recebidas)===JSON.stringify([referral]),'origem não chegou à gravação')
+ await tratarWebhook(deps,corpo({messages:[{id:'in-ref',from:'5511900000009',timestamp:ts(),type:'text',referral}]}),'outra','123')
+ assert(recebidas.length===1,'origem de outra conta aceita')
+})

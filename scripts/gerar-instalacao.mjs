@@ -14,10 +14,16 @@ const base = resolve(import.meta.dirname, '..')
 
 // Módulos que já existem na base.
 const MODULOS = {
+  captacao: {
+    migracoes: ['0025_captacao_de_formularios', '0026_origens_e_relatorio'],
+    funcoes: ['captacao'],
+    compartilhados: ['captacao.ts', 'captacao_test.ts', 'origem_captacao.ts', 'origem_integracao_test.ts'],
+    scripts: ['test:captacao', 'test:captacao:db:rehearsal', 'test:captacao:db:apply', 'test:ui:captacao', 'test:origens:db:rehearsal', 'test:origens:db:apply'],
+  },
   conversas: {
     migracoes: ['0007_modulo_conversas', '0012_retencao_de_midia', '0013_respostas_rapidas', '0014_notas_internas', '0015_assumir_e_transferir', '0016_adiar_conversa', '0024_automacoes_de_envio'],
     funcoes: ['whatsapp', 'automacoes'],
-    compartilhados: ['uazapi.ts', 'whatsapp.ts', 'gancho.ts', 'sessao.ts', 'conversas_test.ts', 'optout.ts', 'optout_test.ts', 'vigia.ts', 'vigia_test.ts', 'automacoes.ts', 'automacoes_test.ts', 'meta-api.ts', 'meta-protocolo.ts', 'anexos.ts', 'anexos_test.ts'],
+    compartilhados: ['uazapi.ts', 'whatsapp.ts', 'origem.ts', 'gancho.ts', 'sessao.ts', 'conversas_test.ts', 'optout.ts', 'optout_test.ts', 'vigia.ts', 'vigia_test.ts', 'automacoes.ts', 'automacoes_test.ts', 'meta-api.ts', 'meta-protocolo.ts', 'anexos.ts', 'anexos_test.ts'],
     arquivos: ['scripts/vigia-worker.mjs', 'scripts/automacoes-worker.mjs'],
     scripts: ['test:automacoes', 'test:automacoes:db:rehearsal', 'test:automacoes:db:apply', 'test:conversas', 'test:optout', 'test:vigia', 'test:anexos', 'test:conversas:db:rehearsal', 'test:conversas:db:apply', 'test:retencao:db:rehearsal', 'test:retencao:db:apply', 'test:respostas:db:rehearsal', 'test:respostas:db:apply', 'test:notas:db:rehearsal', 'test:notas:db:apply', 'test:conversa-dono:db:rehearsal', 'test:conversa-dono:db:apply', 'test:adiar:db:rehearsal', 'test:adiar:db:apply', 'test:ui:conversas'],
   },
@@ -121,6 +127,7 @@ try {
   // Um módulo pode trocar um arquivo do anterior: [origem, destino] vence o arquivo de mesmo nome.
   const destinos = new Map()
   for (const item of compartilhados) { const [origem, nomeFinal] = Array.isArray(item) ? item : [item, item]; destinos.set(nomeFinal, origem) }
+  if (modulos.includes('captacao')) destinos.set('origem.ts', 'origem_captacao.ts')
   for (const [nomeFinal, origem] of destinos) {
     mkdirSync(join(destino, 'supabase/functions/_shared'), { recursive: true })
     cpSync(join(base, `supabase/functions/_shared/${origem}`), join(destino, `supabase/functions/_shared/${nomeFinal}`))
@@ -163,6 +170,7 @@ try {
   }).join('\n')
   const linhasFuncoes = funcoes.map(f => `supabase functions deploy ${f} --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt`).join('\n')
   const extras = [
+    modulos.includes('captacao') && '- Captação: aplique a 0025 e a 0026 antes de publicar os webhooks. Publique `captacao` com `--no-verify-jwt`. Em Leads recebidos, o gestor cria uma fonte desligada, guarda o segredo no servidor do site e configura POST JSON ou formulário plano para o endereço exibido, com cabeçalho `X-Captacao-Segredo`. Envie `whatsapp` e `id_externo` único por envio (reenvios mantêm o mesmo ID), e opcionalmente `nome`, `email`, `empresa` e as cinco UTMs. Ative só depois de revisar; telefone repetido não altera o contato nem a primeira origem. Nunca coloque o segredo no JavaScript público. Para landing pages, configure o código de referência e as UTMs da fonte e inclua `[ref:codigo]` na mensagem do botão WhatsApp (exige conversas). Com campanhas, o webhook da Meta registra a origem de anúncios/publicações quando a Meta entrega referral. Consulte o relatório por origem em Leads recebidos.',
     modulos.includes('conversas') && '- Conversas: configure `WEBHOOK_SEGREDO`, `UAZAPI_API_URL` e `UAZAPI_TOKEN` nos secrets das Edge Functions; configure o webhook da uazapi para `https://<ref>.supabase.co/functions/v1/whatsapp` e teste conexão, recebimento e envio. Configure também `VIGIA_SEGREDO` (24+ caracteres) e agende `node scripts/vigia-worker.mjs` a cada 5 minutos, com `SUPABASE_URL` e `VIGIA_SEGREDO` no ambiente do agendador: é ele que avisa na Central quando o WhatsApp cai ou uma mensagem não sai; sem o agendamento esses avisos não aparecem.',
     modulos.includes('conversas') && '- Automações: configure `AUTOMACOES_SEGREDO` (24+ caracteres) nas Edge Functions e agende `node scripts/automacoes-worker.mjs` a cada 5 minutos com `SUPABASE_URL` e `AUTOMACOES_SEGREDO`. Na tela Automações, registre a autorização dos contatos, configure os textos/modelos e só então ative as regras. Envios pela Meta exigem o módulo campanhas.',
     modulos.includes('assistente') && '- Assistente: configure `OPENAI_API_KEY` ou `ANTHROPIC_API_KEY` nos secrets. Comece no modo desligado, teste com um número permitido e só depois ative ao vivo.',

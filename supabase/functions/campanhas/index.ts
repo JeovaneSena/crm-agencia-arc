@@ -15,6 +15,7 @@
  * Secrets: META_ACCESS_TOKEN, META_APP_SECRET, META_VERIFY_TOKEN, META_PHONE_NUMBER_ID, META_WABA_ID,
  * META_GRAPH_VERSION (ex.: v21.0) e CAMPANHAS_WORKER_SECRET.
  */
+import { contatoComOrigem } from '../_shared/origem.ts'
 import { classificarOptOut } from '../_shared/optout.ts'
 import { inserir, rpc, selecionar } from '../_shared/db.ts'
 import { usuarioDaSessao } from '../_shared/sessao.ts'
@@ -71,9 +72,9 @@ function depsDoWebhook(): DepsWebhook {
       return (await selecionar<{ id: string }>(`contatos_dados?select=id&whatsapp=eq.${encodeURIComponent(whatsapp)}&limit=1`))[0]?.id ?? null
     },
     async revogarConsentimento(contatoId, fonte) { await rpc('marketing_registrar_preferencia', { p_contato: contatoId, p_ativo: false, p_fonte: fonte }) },
-    async gravarRecebida(whatsapp, idExterno, tipo, texto) {
+    async gravarRecebida(whatsapp, idExterno, tipo, texto, referral) {
       const achar = async () => (await selecionar<{ id: string }>(`contatos_dados?select=id&whatsapp=eq.${encodeURIComponent(whatsapp)}&limit=1`))[0]?.id
-      const contato = await achar() ?? (await inserir<{ id: string }>('contatos_dados', { whatsapp, status: 'novo_lead' }, true, 'whatsapp'))[0]?.id ?? await achar()
+      const contato = await contatoComOrigem(whatsapp, texto, referral) ?? await achar() ?? (await inserir<{ id: string }>('contatos_dados', { whatsapp, status: 'novo_lead' }, true, 'whatsapp'))[0]?.id ?? await achar()
       if (!contato) throw new Error('contato não criado')
       const parada = classificarOptOut(texto)
       if (parada !== 'nenhum') await rpc('automacao_bloquear', { p_contato: contato, p_marketing: parada === 'pedido' })

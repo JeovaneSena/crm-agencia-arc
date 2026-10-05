@@ -14,3 +14,5 @@ Para publicar a **base mestre** no GitHub, rode `npm run preflight`, `npm run te
 Para um roteiro iniciante, com pré-requisitos e contas necessárias, veja [COMECANDO.md](COMECANDO.md).
 
 Para lembretes e follow-up, consulte [Automações](AUTOMACOES.md). Em atualizações, aplique a migração 0024 antes de publicar os novos webhooks whatsapp/campanhas. Configure o worker somente na instalação derivada.
+
+Para captação e origem, consulte [Captação](MODULO_CAPTACAO.md). Aplique 0025 e 0026 antes dos webhooks. O módulo `captacao` pode ser instalado com o núcleo; referências exigem conversas, e origem de anúncios Meta exige campanhas.

@@ -9,7 +9,7 @@
  * Desligar um módulo aqui só esconde a tela. Quem impede o uso de verdade é o
  * banco: as tabelas do módulo nem existem numa instalação que não as aplicou.
  */
-export type Modulo = 'conversas' | 'campanhas' | 'assistente' | 'projetos'
+export type Modulo = 'conversas' | 'campanhas' | 'assistente' | 'projetos' | 'captacao'
 
 const ATIVOS = new Set(
   String(import.meta.env.VITE_MODULOS ?? '').split(',').map(m => m.trim()).filter(Boolean),

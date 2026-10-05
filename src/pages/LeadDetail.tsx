@@ -17,6 +17,7 @@ import CampoTelefone from '../components/CampoTelefone'
 import ApagarEstaPessoa from '../components/ApagarEstaPessoa'
 import ConsentimentoMarketing from '../components/ConsentimentoMarketing'
 import LinhaDoTempo from '../components/LinhaDoTempo'
+import OrigemDoContato from '../components/OrigemDoContato'
 import EtiquetasDoContato from '../components/EtiquetasDoContato'
 import { TarefasDoContato } from '../components/Tarefas'
 import type { Contato, Consulta, ReuniaoStatus, Profissional, ProfissionalHorario } from '../types'
@@ -575,6 +576,7 @@ export default function LeadDetail() {
       {/* Linha do tempo: etapas, reuniões e avisos do contato, numa ordem só. */}
       <div className="fade-in-2">
         <SectionCard title="Linha do tempo" icon={History}>
+          {moduloAtivo('captacao') && <OrigemDoContato key={lead.id} contatoId={lead.id} />}
           <LinhaDoTempo contato={{ id: lead.id, created_at: lead.created_at }} reunioes={consultas} ultimaMensagem={moduloAtivo('conversas') ? lead.ultima_mensagem : null} rotuloEtapa={funil.rotulo} />
         </SectionCard>
       </div>
