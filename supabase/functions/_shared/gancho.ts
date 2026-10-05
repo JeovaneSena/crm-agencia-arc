@@ -31,3 +31,5 @@ export function rascunhoDaIA(contatoId: string): Promise<ResultadoRascunho> {
   void contatoId
   return Promise.resolve({ ok: false, motivo: 'indisponivel' })
 }
+
+export async function manutencaoAssistente(): Promise<void> {}

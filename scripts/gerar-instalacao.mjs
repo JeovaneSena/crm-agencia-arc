@@ -29,11 +29,11 @@ const MODULOS = {
   },
   assistente: {
     requer: ['conversas'],
-    migracoes: ['0009_modulo_assistente', '0022_volta_ao_assistente'],
+    migracoes: ['0009_modulo_assistente', '0022_volta_ao_assistente', '0027_assistente_seguro'],
     funcoes: [],
     // `gancho_assistente.ts` ocupa o lugar do `gancho.ts` vazio do módulo conversas.
-    compartilhados: ['llm.ts', 'assistente.ts', 'assistente_prompt.ts', 'assistente_test.ts', ['gancho_assistente.ts', 'gancho.ts']],
-    scripts: ['test:assistente', 'test:assistente:db:rehearsal', 'test:assistente:db:apply', 'test:volta:db:rehearsal', 'test:volta:db:apply', 'test:ui:assistente'],
+    compartilhados: ['llm.ts', 'seguranca_ia.ts', 'seguranca_ia_test.ts', 'consumo_ia.ts', 'consumo_ia_test.ts', 'extras_ia.ts', 'gancho_assistente.ts', 'revisao_ia.ts', 'revisao_ia_test.ts', 'assistente.ts', 'assistente_prompt.ts', 'assistente_test.ts', ['gancho_assistente.ts', 'gancho.ts']],
+    scripts: ['test:assistente', 'test:seguranca:ia', 'test:seguranca:db:rehearsal', 'test:seguranca:db:apply', 'test:assistente:db:rehearsal', 'test:assistente:db:apply', 'test:volta:db:rehearsal', 'test:volta:db:apply', 'test:ui:assistente'],
   },
   campanhas: {
     requer: ['conversas'],
@@ -42,6 +42,14 @@ const MODULOS = {
     compartilhados: ['campanhas.ts', 'meta-api.ts', 'meta-protocolo.ts', 'sessao.ts', 'campanhas_test.ts', 'meta_protocolo_test.ts'],
     arquivos: ['scripts/campanhas-worker.mjs'],
     scripts: ['test:campanhas', 'test:campanhas:db:rehearsal', 'test:campanhas:db:apply', 'test:ui:campanhas'],
+  },
+  casos: {
+    requer: ['conversas','assistente'], migracoes: ['0028_fila_de_casos'], funcoes: [], compartilhados: [],
+    scripts: ['test:casos:db:rehearsal','test:casos:db:apply','test:ui:casos'],
+  },
+  melhorias: {
+    requer: ['conversas','assistente'], migracoes: ['0029_revisao_do_assistente'], funcoes: ['melhorias'], compartilhados: ['revisao_rota_test.ts'],
+    scripts: ['test:melhorias:db:rehearsal','test:melhorias:db:apply','test:ui:melhorias','test:melhorias:rota'],
   },
   projetos: {
     migracoes: ['0008_modulo_projetos'],
@@ -127,6 +135,7 @@ try {
   // Um módulo pode trocar um arquivo do anterior: [origem, destino] vence o arquivo de mesmo nome.
   const destinos = new Map()
   for (const item of compartilhados) { const [origem, nomeFinal] = Array.isArray(item) ? item : [item, item]; destinos.set(nomeFinal, origem) }
+  if (modulos.includes('casos') || modulos.includes('melhorias')) destinos.set('extras_ia.ts', modulos.includes('casos') && modulos.includes('melhorias') ? 'extras_ia_completo.ts' : modulos.includes('casos') ? 'extras_ia_casos.ts' : 'extras_ia_melhorias.ts')
   if (modulos.includes('captacao')) destinos.set('origem.ts', 'origem_captacao.ts')
   for (const [nomeFinal, origem] of destinos) {
     mkdirSync(join(destino, 'supabase/functions/_shared'), { recursive: true })
@@ -173,7 +182,9 @@ try {
     modulos.includes('captacao') && '- Captação: aplique a 0025 e a 0026 antes de publicar os webhooks. Publique `captacao` com `--no-verify-jwt`. Em Leads recebidos, o gestor cria uma fonte desligada, guarda o segredo no servidor do site e configura POST JSON ou formulário plano para o endereço exibido, com cabeçalho `X-Captacao-Segredo`. Envie `whatsapp` e `id_externo` único por envio (reenvios mantêm o mesmo ID), e opcionalmente `nome`, `email`, `empresa` e as cinco UTMs. Ative só depois de revisar; telefone repetido não altera o contato nem a primeira origem. Nunca coloque o segredo no JavaScript público. Para landing pages, configure o código de referência e as UTMs da fonte e inclua `[ref:codigo]` na mensagem do botão WhatsApp (exige conversas). Com campanhas, o webhook da Meta registra a origem de anúncios/publicações quando a Meta entrega referral. Consulte o relatório por origem em Leads recebidos.',
     modulos.includes('conversas') && '- Conversas: configure `WEBHOOK_SEGREDO`, `UAZAPI_API_URL` e `UAZAPI_TOKEN` nos secrets das Edge Functions; configure o webhook da uazapi para `https://<ref>.supabase.co/functions/v1/whatsapp` e teste conexão, recebimento e envio. Configure também `VIGIA_SEGREDO` (24+ caracteres) e agende `node scripts/vigia-worker.mjs` a cada 5 minutos, com `SUPABASE_URL` e `VIGIA_SEGREDO` no ambiente do agendador: é ele que avisa na Central quando o WhatsApp cai ou uma mensagem não sai; sem o agendamento esses avisos não aparecem.',
     modulos.includes('conversas') && '- Automações: configure `AUTOMACOES_SEGREDO` (24+ caracteres) nas Edge Functions e agende `node scripts/automacoes-worker.mjs` a cada 5 minutos com `SUPABASE_URL` e `AUTOMACOES_SEGREDO`. Na tela Automações, registre a autorização dos contatos, configure os textos/modelos e só então ative as regras. Envios pela Meta exigem o módulo campanhas.',
-    modulos.includes('assistente') && '- Assistente: configure `OPENAI_API_KEY` ou `ANTHROPIC_API_KEY` nos secrets. Comece no modo desligado, teste com um número permitido e só depois ative ao vivo.',
+    modulos.includes('assistente') && '- Assistente: configure `OPENAI_API_KEY` ou `ANTHROPIC_API_KEY` nos secrets. Aplique a 0027, configure o teto mensal e tarifas em US$ por milhão de tokens em Assistente; sem tarifa a IA aguarda configuração. O vigia retoma espera por saldo/orçamento após recarga confirmada. Comece no modo desligado, teste com um número permitido e só depois ative ao vivo.',
+    modulos.includes('casos') && '- Casos: a 0028 acrescenta fila de atendimento humano e aviso após duas horas. Assuma e registre a solução; finalizar não religa a IA.',
+    modulos.includes('melhorias') && '- Melhorias: a 0029 e a função `melhorias` acrescentam evidência, comparação sem envio, aprovação explícita do gestor e versões restauráveis. A comparação usa o orçamento da IA. Atualizações da configuração invalidam comparações antigas.',
     modulos.includes('campanhas') && '- Campanhas: configure `META_ACCESS_TOKEN`, `META_APP_SECRET`, `META_VERIFY_TOKEN`, `META_PHONE_NUMBER_ID`, `META_WABA_ID`, `META_GRAPH_VERSION` e `CAMPANHAS_WORKER_SECRET`. Configure o webhook da Meta em `https://<ref>.supabase.co/functions/v1/campanhas/webhook`. Agende `node scripts/campanhas-worker.mjs` uma vez por minuto com `SUPABASE_URL` e `CAMPANHAS_WORKER_SECRET` no ambiente do agendador; sem esse agendamento a fila não envia.',
   ].filter(Boolean).join('\n')
   writeFileSync(join(destino, 'README.md'), `# ${nome}\n\nInstalação gerada em ${instalacao.gerada_em} pela base mestre (${revisao}). Módulos: ${modulos.join(', ') || 'só o núcleo'}. Este repositório usa somente recursos deste cliente.\n\n## Antes de começar\n\nUse Node.js 22+ e a CLI do Supabase. Crie um projeto Supabase **novo e vazio** e tenha seu ref e um access token de gestão. Não coloque o token nem a chave service_role em arquivos do repositório ou no frontend. Reserve o domínio \`https://${dominio}\` para o CRM.\n\n\`\`\`bash\nnpm ci\nnpm run preflight\nread -r -p 'Ref do projeto Supabase: ' SUPABASE_PROJECT_REF\nexport SUPABASE_PROJECT_REF\nread -r -s -p 'Access token Supabase: ' SUPABASE_ACCESS_TOKEN\nexport SUPABASE_ACCESS_TOKEN\n\`\`\`\n\n## 1. Banco de dados\n\nConfira o ref antes de aplicar. Cada comando \`rehearse\` testa e reverte; cada \`apply\` grava a migração após passar pelo check. Execute na ordem, sem pular linhas:\n\n\`\`\`bash\nnpm run test:base:db:rehearsal\nnpm run test:base:db:apply\n${linhasMigracoes}\nnpm run test:base:db:verify\n\`\`\`\n\n## 2. Auth e primeiro gestor\n\n\`\`\`bash\nnpm run auth:config\nnpm run auth:aplicar\n\`\`\`\n\nNo painel Supabase, em Authentication → Email Templates, cole os modelos de convite e recuperação de \`supabase/email-templates/\`. Esses modelos levam à página de definição de senha. Confira que o cadastro público ficou fechado e espere o site estar publicado antes de enviar o primeiro convite.\n\n## 3. Edge Functions\n\nAutentique a CLI do Supabase com acesso a este projeto. Publique somente as funções desta instalação. A verificação JWT da plataforma fica desativada porque cada função valida a sessão, o segredo do trabalhador ou a assinatura do webhook em seu próprio código:\n\n\`\`\`bash\n${linhasFuncoes}\n\`\`\`\n\nNo painel Supabase, em Edge Functions → Secrets, defina \`APP_URL=https://${dominio}\`. O Supabase fornece \`SUPABASE_URL\`, \`SUPABASE_ANON_KEY\` e \`SUPABASE_SERVICE_ROLE_KEY\` às funções.\n${extras ? `\n${extras}\n` : ''}\n## 4. Site\n\nCopie \`.env.example\` para \`.env\` e preencha apenas \`VITE_SUPABASE_URL\` e \`VITE_SUPABASE_ANON_KEY\` com os valores públicos deste projeto. O campo \`VITE_MODULOS\` já veio configurado. Configure essas mesmas variáveis no serviço que publica o site e aponte o domínio \`${dominio}\` para ele. O arquivo \`vercel.json\` inclui o fallback das rotas do app.\n\n\`\`\`bash\nnpm run build\nnpm run lint\n\`\`\`\n\n## 5. Aceite\n\nNo painel Supabase, em Authentication → Users, envie o convite para o primeiro gestor. A primeira conta criada após as migrações recebe esse papel. Abra o site publicado, aceite o convite, defina uma senha e entre. Confira usuários, contato, oportunidade, funil, agenda e somente os módulos escolhidos. Teste RLS com uma conta consultora. Se houver integrações, verifique webhook, recebimento e envio reais antes de ativar campanhas ou assistente. Execute \`npm run preflight\` novamente e registre o resultado.\n`)

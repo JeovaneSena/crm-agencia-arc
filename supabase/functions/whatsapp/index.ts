@@ -24,7 +24,7 @@ import { UAZAPI } from '../_shared/uazapi.ts'
 import { avaliarWebhook } from '../_shared/whatsapp.ts'
 import { usuarioDaSessao } from '../_shared/sessao.ts'
 import { classificarOptOut } from '../_shared/optout.ts'
-import { aposReceber, camposDoContatoNovo, rascunhoDaIA } from '../_shared/gancho.ts'
+import { aposReceber, camposDoContatoNovo, rascunhoDaIA, manutencaoAssistente } from '../_shared/gancho.ts'
 import { vigiar, type DepsVigia } from '../_shared/vigia.ts'
 import { classificarAnexo } from '../_shared/anexos.ts'
 
@@ -383,6 +383,7 @@ async function rotaVigiar(req: Request): Promise<Response> {
   const segredo = Deno.env.get('VIGIA_SEGREDO') ?? ''
   const enviado = (req.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '')
   if (segredo.length < 24 || enviado !== segredo) return json({ ok: false, motivo: 'nao_autorizado' }, 401)
+  await emSegundoPlano(manutencaoAssistente().catch(()=>console.error('assistente: manutenção não concluída')))
   const r = await vigiar(depsDoVigia(), async () => Number(await rpc<number>('avisos_expurgar', { p_dias: 90 })) || 0)
   return json({ ok: r.erros.length === 0, ...r }, r.erros.length ? 500 : 200)
 }

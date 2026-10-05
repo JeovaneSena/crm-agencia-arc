@@ -41,6 +41,8 @@ const NAV_GROUPS: { label: string; items: ItemNav[] }[] = [
       { to: '/tarefas', label: 'Tarefas', icon: ListChecks },
       { to: '/avisos', label: 'Avisos', icon: Bell },
       { to: '/leads', label: 'Leads', icon: Users, end: true },
+      { to: '/casos', label: 'Casos da equipe', icon: Users, modulo: 'casos' },
+      { to: '/melhorias-assistente', label: 'Revisão do assistente', icon: Bot, gestor: true, modulo: 'melhorias' },
       { to: '/captacao', label: 'Leads recebidos', icon: Users, modulo: 'captacao' },
       { to: '/clientes', label: 'Clientes', icon: UserCheck },
     ],

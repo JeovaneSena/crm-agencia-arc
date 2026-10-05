@@ -7,12 +7,14 @@ import { setTimeout as delay } from 'node:timers/promises'
 const base = 'http://127.0.0.1:5187'
 const comConversas = process.argv.includes('--conversas')
 const comProjetos = process.argv.includes('--projetos')
-const comAssistente = process.argv.includes('--assistente')
+const comCasos=process.argv.includes('--casos')
+const comMelhorias=process.argv.includes('--melhorias')
+const comAssistente = process.argv.includes('--assistente')||comCasos||comMelhorias
 const comCampanhas = process.argv.includes('--campanhas')
 const comCaptacao = process.argv.includes('--captacao')
 const supabaseUrl = 'https://crm-base-test.supabase.co'
 const project = 'crm-base-test'
-const modulosLigados = [(comConversas || comAssistente || comCampanhas) && 'conversas', comProjetos && 'projetos', comAssistente && 'assistente', comCampanhas && 'campanhas', comCaptacao && 'captacao'].filter(Boolean).join(',')
+const modulosLigados = [(comConversas || comAssistente || comCampanhas) && 'conversas', comProjetos && 'projetos', comAssistente && 'assistente', comCampanhas && 'campanhas', comCaptacao && 'captacao', comCasos && 'casos', comMelhorias && 'melhorias'].filter(Boolean).join(',')
 // Um servidor sobrando de um teste anterior responderia no lugar do nosso, com outros módulos ligados.
 if (await fetch(base).then(() => true, () => false)) throw Error('A porta 5187 já está em uso (servidor de um teste anterior?). Encerre-o antes de rodar.')
 const server = spawn(process.execPath, ['node_modules/vite/bin/vite.js', '--host', '127.0.0.1', '--port', '5187', '--strictPort'], { stdio: 'ignore', env: { ...process.env, VITE_MODULOS: modulosLigados, VITE_SUPABASE_URL: supabaseUrl, VITE_SUPABASE_ANON_KEY: 'chave-ficticia-para-testes' } })
@@ -70,7 +72,13 @@ const errors=[]
 const page = await context.newPage()
 page.on('pageerror',e=>errors.push(e.message))
 const dias = Array.from({length:7},(_,i)=>i)
+let casosMock=[{id:'00000000-0000-4000-8000-000000000028',contato_id:lead.id,motivo:'pedido_pessoa',resumo:'Cliente pediu uma pessoa. Próximo passo: atender.',estado:'aguardando',solucao:null,contato:{nome:lead.nome}}]
+let propostasMock=[],testesMelhoria=[]
+let versoesMock=[{id:'00000000-0000-4000-8000-000000000029',conteudo:'',criada_em:now}]
+let ativaMock=versoesMock[0].id
 const tabelas = {
+ assistente_casos:()=>casosMock,assistente_melhorias:()=>propostasMock,assistente_melhoria_testes:()=>testesMelhoria,assistente_melhoria_versoes:()=>versoesMock,assistente_melhoria_controle:()=>[{versao_id:ativaMock}],
+ assistente_tarifas:()=>[{entrada:3,saida:15}],
  captacao_fontes:()=>fontesCaptacao,
  captacao_recebimentos:()=>recebimentosCaptacao,
  contato_atribuicoes:()=>[{utm:{utm_source:'google',utm_campaign:'outubro'},recebida_em:now,fonte:{nome:'Site de teste'}}],
@@ -81,7 +89,7 @@ const tabelas = {
  campanhas_lista:()=>[campanhaLinha], campanhas:()=>[campanhaCompleta], campanha_destinatarios:()=>destinatarios, campanha_eventos:()=>[{id:'ev1',tipo:'publico_congelado',descricao:'Público congelado para revisão.',criado_em:now}],
  campanhas_controle:()=>[{id:true,pausado:false,pausa_motivo:null,limite_por_minuto:30,limite_diario:250,usados_no_dia:12,proximo_disparo_em:now,atualizada_em:now}],
  marketing_consentimentos:()=>consentimentoRegistrado?[{contato_id:lead.id,ativo:true,consentido_em:now,revogado_em:null,fonte:'pediu pelo WhatsApp'}]:[],
- assistente_config:()=>[{id:true,modo:'desligada',nome:'Assistente',modelo:'claude-sonnet-5-5',instrucoes:null,numeros_teste:[],max_respostas:12,espera_segundos:6,devolver_apos_minutos:null,updated_by:null,updated_at:now}],
+ assistente_config:()=>[{id:true,modo:'desligada',nome:'Assistente',modelo:'claude-sonnet-5-5',instrucoes:null,numeros_teste:[],max_respostas:12,espera_segundos:6,devolver_apos_minutos:null,teto_mensal_usd:50,saldo_openai:false,saldo_anthropic:true,updated_by:null,updated_at:now}],
  assistente_respostas:()=>[{mensagem_id:'r1',contato_id:lead.id,estado:'ignorada',motivo:'ia_desligada',created_at:now},{mensagem_id:'r2',contato_id:lead.id,estado:'falhou',motivo:'erro_interno',created_at:now}],
  conversa_eventos:()=>[{id:'ce1',contato_id:lead.id,tipo:'transferiu',de_usuario:user.id,para_usuario:'00000000-0000-4000-8000-0000000000aa',por_usuario:user.id,created_at:now}],
  notas_conversa:()=>[{id:'n1',contato_id:lead.id,texto:'Cliente prefere falar às terças.',autor_id:user.id,created_at:now,autor:{nome:'Equipe Teste'}}],
@@ -113,6 +121,7 @@ await context.route('**/*',async route=>{
  else if(url.pathname.includes('/functions/v1/equipe')) data={ok:true,usuarios:[
   {...user,nome:'Equipe Teste',email:'gestor@exemplo.test',papel:'gestor',ativo:true,avatar_url:null,profissional_id:null,convidado_em:null,convite_pendente:false,ultimo_acesso_em:now,criado_em:now},
   {id:'00000000-0000-4000-8000-000000000009',nome:'Consultor Convidado',email:'consultor@exemplo.test',papel:'consultor',ativo:true,avatar_url:null,profissional_id:null,convidado_em:now,convite_pendente:true,ultimo_acesso_em:null,criado_em:now}]}
+ else if(url.pathname.endsWith('/rpc/assistente_consumo_resumo'))data={gasto:0.5,reservado:0.1,chamadas:1}
  else if(tabelas[table]) data=tabelas[table]()
  if(route.request().headers().accept?.includes('vnd.pgrst.object')&&Array.isArray(data)) data=data[0]??null
  await route.fulfill({status:200,contentType:'application/json',headers:{'content-range':'0-0/1'},body:JSON.stringify(data)})
@@ -266,11 +275,11 @@ try {
  await page.goto(base+'/configuracoes'); await page.getByRole('button',{name:'Funil'}).click()
  const campoJanela=page.getByLabel('Esfria após, em horas, na etapa Proposta')
  await campoJanela.fill('5000')
- await page.locator('.funil-linha').filter({has:campoJanela}).getByRole('button',{name:'Salvar'}).click()
+ await page.locator('.funil-linha').filter({has:campoJanela}).getByRole('button',{name:'Salvar',exact:true}).click()
  await page.getByText('O tempo para esfriar vai de 1 a 2160 horas').waitFor()
  assert.equal(janela,null,'radar: gravou uma janela fora do limite')
  await campoJanela.fill('72')
- await page.locator('.funil-linha').filter({has:campoJanela}).getByRole('button',{name:'Salvar'}).click(); await page.waitForTimeout(500)
+ await page.locator('.funil-linha').filter({has:campoJanela}).getByRole('button',{name:'Salvar',exact:true}).click(); await page.waitForTimeout(500)
  assert.equal(janela?.esfria_apos_horas,72,'radar: a janela da etapa não foi gravada')
  console.log('PASS radar: faixas, filtros, próximo passo e janela por etapa')
  // CRM: responsável no cartão, filtro "Minhas" e ações em lote (a função do banco é tudo-ou-nada).
@@ -508,15 +517,70 @@ try {
   const prazo=page.getByLabel(/o assistente volta a atender depois de/)
   assert(await prazo.inputValue()==='','o prazo da volta automática deveria nascer vazio (nunca)')
   await prazo.fill('45')
-  await page.getByRole('button',{name:'Salvar'}).click()
+  await page.getByRole('button',{name:'Salvar',exact:true}).click()
   await page.waitForTimeout(400)
   assert(salvoCfg?.p_devolver_apos===45,'salvar não enviou o prazo da volta automática')
   await prazo.fill('')
-  await page.getByRole('button',{name:'Salvar'}).click()
+  await page.getByRole('button',{name:'Salvar',exact:true}).click()
   await page.waitForTimeout(400)
   assert(salvoCfg?.p_devolver_apos===null,'prazo em branco deveria ir como nulo (nunca volta sozinho)')
   assert(salvoCfg?.p_modo==='teste'&&salvoCfg.p_numeros?.[0]==='(11) 98765-4321'&&salvoCfg.p_modelo==='claude-sonnet-5-5','salvar não chamou a função com modo e números')
-  console.log('PASS assistente: encaminhamento, ligar na conversa e configuração')
+  let financeiro=null,recarga=null
+  await context.route('**/rest/v1/rpc/assistente_financeiro_salvar',async r=>{financeiro=r.request().postDataJSON();await r.fulfill({status:200,contentType:'application/json',body:''})})
+  await context.route('**/rest/v1/rpc/assistente_recarga_confirmar',async r=>{recarga=r.request().postDataJSON();await r.fulfill({status:200,contentType:'application/json',body:''})})
+  await page.getByLabel('Teto mensal (US$)',{exact:true}).fill('25')
+  await page.getByLabel('Entrada por milhão de tokens (US$)',{exact:true}).fill('3')
+  await page.getByLabel('Saída por milhão de tokens (US$)',{exact:true}).fill('15')
+  await page.getByRole('button',{name:'Salvar orçamento',exact:true}).click()
+  await page.getByText('Custos salvos.',{exact:true}).waitFor()
+  assert(financeiro.p_teto===25&&financeiro.p_modelo==='claude-sonnet-5-5')
+  await page.getByRole('button',{name:'Confirmar recarga de openai',exact:true}).click()
+  await page.getByText(/Recarga confirmada/).waitFor()
+  assert.equal(recarga.p_provedor,'openai')
+  console.log('PASS assistente: encaminhamento, configuração, orçamento e recarga')
+ }
+ if(comCasos){
+  let assumiuCaso=null,finalizouCaso=null
+  await context.route('**/rest/v1/rpc/assistente_caso_assumir',async r=>{assumiuCaso=r.request().postDataJSON();casosMock=casosMock.map(c=>({...c,estado:'em_atendimento'}));await r.fulfill({status:200,contentType:'application/json',body:''})})
+  await context.route('**/rest/v1/rpc/assistente_caso_finalizar',async r=>{finalizouCaso=r.request().postDataJSON();casosMock=casosMock.map(c=>({...c,estado:'resolvido',solucao:finalizouCaso.p_solucao}));await r.fulfill({status:200,contentType:'application/json',body:''})})
+  await page.goto(base+'/casos')
+  await page.getByRole('button',{name:'Assumir caso',exact:true}).click()
+  await page.getByLabel('Solução do caso',{exact:true}).fill('A equipe esclareceu a proposta.')
+  await page.getByLabel('Avaliação do encaminhamento',{exact:true}).selectOption('desnecessario')
+  await page.getByRole('button',{name:'Finalizar caso',exact:true}).click()
+  await page.getByText('Solução: A equipe esclareceu a proposta.',{exact:true}).waitFor()
+  assert(assumiuCaso.p_id===casosMock[0].id&&finalizouCaso.p_avaliacao==='desnecessario')
+  console.log('PASS casos: contexto, assumir, solução e avaliação')
+ }
+ if(comMelhorias){
+  let propostaCriada=null,comparacao=null,aprovou=null,restaurou=null
+  await context.route('**/rest/v1/contatos_dados?*',async r=>{
+   const url=new URL(r.request().url())
+   if(r.request().method()!=='GET'||url.searchParams.get('select')!=='id,nome')return r.fallback()
+   await r.fulfill({status:200,contentType:'application/json',body:JSON.stringify([lead])})
+  })
+  const propostaId='00000000-0000-4000-8000-000000000030'
+  await context.route('**/rest/v1/rpc/assistente_melhoria_criar',async r=>{propostaCriada=r.request().postDataJSON();propostasMock=[{id:propostaId,titulo:propostaCriada.p_titulo,evidencia:propostaCriada.p_evidencia,conteudo:propostaCriada.p_conteudo,contato_id:lead.id,estado:'rascunho'}];await r.fulfill({status:200,contentType:'application/json',body:JSON.stringify(propostaId)})})
+  await context.route('**/functions/v1/melhorias',async r=>{comparacao=r.request().postDataJSON();testesMelhoria=[{id:'teste-29',proposta_id:propostaId,apto:true,resultado:{base:{ok:true,texto:'Resposta atual de teste.'},candidato:{ok:true,texto:'Resposta proposta de teste.'}}}];propostasMock[0].estado='testada';await r.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true})})})
+  await context.route('**/rest/v1/rpc/assistente_melhoria_aprovar',async r=>{aprovou=r.request().postDataJSON();ativaMock='versao-nova';versoesMock=[{id:ativaMock,conteudo:propostasMock[0].conteudo,criada_em:now},...versoesMock];propostasMock[0].estado='aprovada';await r.fulfill({status:200,contentType:'application/json',body:JSON.stringify(ativaMock)})})
+  await context.route('**/rest/v1/rpc/assistente_melhoria_reverter',async r=>{restaurou=r.request().postDataJSON();ativaMock=restaurou.p_versao;await r.fulfill({status:200,contentType:'application/json',body:JSON.stringify(ativaMock)})})
+  await page.goto(base+'/melhorias-assistente')
+  await page.getByLabel('Título da melhoria',{exact:true}).fill('Explicar a proposta')
+  await page.getByLabel('Contato da evidência',{exact:true}).selectOption(lead.id)
+  await page.getByLabel('O que precisa melhorar',{exact:true}).fill('Cliente recebeu orientação incompleta.')
+  await page.getByLabel('Instrução proposta',{exact:true}).fill('Explique o próximo passo da proposta.')
+  await page.getByRole('button',{name:'Criar proposta',exact:true}).click()
+  await page.getByRole('button',{name:'Comparar Explicar a proposta',exact:true}).click()
+  await page.getByText('Resposta atual de teste.',{exact:true}).waitFor()
+  await page.getByText('Resposta proposta de teste.',{exact:true}).waitFor()
+  assert.equal(aprovou,null,'aprovação automática após comparar')
+  await page.getByRole('button',{name:'Aprovar Explicar a proposta',exact:true}).click()
+  await page.getByText(/Melhoria aprovada/).waitFor()
+  assert(aprovou.p_proposta===comparacao.proposta_id&&aprovou.p_teste==='teste-29')
+  await page.getByRole('button',{name:'Restaurar versão 00000000',exact:true}).click()
+  await page.getByText('Versão restaurada.',{exact:true}).waitFor()
+  assert.equal(restaurou.p_atual,'versao-nova')
+  console.log('PASS melhorias: evidência, comparação, aprovação explícita e restauração')
  }
  if(comCampanhas){
   // Módulo campanhas: lista com o controle global, criação, revisão do público, início e consentimento na ficha.

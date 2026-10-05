@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import CustosAssistente from '../components/CustosAssistente'
 import { Save } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { definirNomeDoAgente } from '../lib/agente'
@@ -18,9 +19,10 @@ const MODOS: { valor: Modo; titulo: string; texto: string }[] = [
 ]
 const MODELOS = ['claude-sonnet-5-5', 'claude-opus-5-5', 'claude-haiku-4-5-20251001']
 const ROTULO_ESTADO: Record<string, string> = {
-  respondida: 'Respondida', encaminhada: 'Encaminhada à equipe', ignorada: 'Ignorada', falhou: 'Falhou', processando: 'Em andamento',
+  respondida: 'Respondida', encaminhada: 'Encaminhada à equipe', ignorada: 'Ignorada', falhou: 'Falhou', processando: 'Em andamento', aguardando: 'Aguardando saldo ou orçamento',
 }
 const ROTULO_MOTIVO: Record<string, string> = {
+  chave_ausente: 'configure a chave do modelo no servidor', sem_saldo: 'aguardando recarga', teto_mensal: 'teto mensal insuficiente', sem_tarifa: 'cadastre as tarifas do modelo', espera_expirada: 'espera passou de 24 horas',
   ia_desligada: 'assistente desligado', fora_da_lista_de_teste: 'número fora da lista de teste', ia_desligada_na_conversa: 'desligado nesta conversa',
   nao_e_texto: 'não era texto', sem_texto: 'mensagem vazia', conversa_assumida: 'a equipe assumiu', limite_de_respostas: 'limite de respostas da conversa',
   equipe_atendendo: 'a equipe respondeu há pouco', ja_reservada: 'mensagem repetida', mensagem_mais_nova: 'o cliente escreveu de novo',
@@ -107,7 +109,7 @@ export default function Assistente() {
       <label>Se a equipe não responder, o assistente volta a atender depois de (minutos)
         <input type="number" min={5} max={1440} placeholder="Nunca" style={{ ...campo, maxWidth: 220 }} value={config.devolver_apos_minutos ?? ''}
           onChange={e => muda({ devolver_apos_minutos: e.target.value === '' ? null : Number(e.target.value) })} />
-        <span style={{ display: 'block', fontSize: 13, color: 'var(--muted)', margin: '6px 0 0' }}>De 5 a 1440. Vale só para conversa que o assistente passou para a equipe e ninguém assumiu, e só no modo ao vivo: passado o prazo sem nenhuma mensagem da equipe pelo CRM, ele reassume e responde o cliente que ficou esperando. Quem pediu para parar de receber mensagem e conversa que alguém assumiu nunca voltam sozinhas. Respostas dadas pelo celular o CRM não enxerga. Em branco, o assistente só volta quando a equipe o liga na conversa.</span>
+        <span style={{ display: 'block', fontSize: 13, color: 'var(--muted)', margin: '6px 0 0' }}>De 5 a 1440. Vale só para conversa que o assistente passou para a equipe e ninguém assumiu, e só no modo ao vivo: passado o prazo sem nenhuma mensagem da equipe pelo CRM, ele reassume e responde o cliente que ficou esperando. Quem pediu uma pessoa, trouxe assunto jurídico ou teve resposta bloqueada, pediu para parar de receber mensagem, e conversa que alguém assumiu nunca voltam sozinhas. Respostas dadas pelo celular o CRM não enxerga. Em branco, o assistente só volta quando a equipe o liga na conversa.</span>
       </label>
 
       <label>Informações do negócio
@@ -121,6 +123,7 @@ export default function Assistente() {
       <div><button disabled={salvando} style={{ ...botao, background: 'var(--action)', color: 'var(--on-action)' }}><Save size={15} /> {salvando ? 'Salvando…' : 'Salvar'}</button></div>
     </form>
 
+    <CustosAssistente modelo={config.modelo} />
     <Card style={{ marginTop: 32, maxWidth: 760, padding: 18 }}>
       <h2 style={{ fontSize: 16, marginTop: 0 }}>Últimas {respostas.length} tentativas</h2>
       {respostas.length === 0 ? <p style={{ color: 'var(--muted)', margin: 0 }}>Nenhuma ainda.</p> : <>

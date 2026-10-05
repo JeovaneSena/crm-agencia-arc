@@ -17,6 +17,8 @@
  *     equipe é chamada. Pedido inequívoco também revoga o consentimento de marketing; o ambíguo só chama a equipe.
  * As travas 5 a 7 são reavaliadas três vezes: ao receber, depois da espera e imediatamente antes de enviar.
  */
+import { AVISO_EQUIPE, passagemDireta, verificarResposta, esperaProporcional } from './seguranca_ia.ts'
+import { ErroConsumo } from './consumo_ia.ts'
 import { FERRAMENTAS, LIMITE_PALAVRAS, montarPrompt } from './assistente_prompt.ts'
 import { classificarOptOut, type NivelOptOut } from './optout.ts'
 import type { MensagemLLM, PedidoLLM, RespostaLLM } from './llm.ts'
@@ -67,6 +69,7 @@ export function decidir(c: { config: ConfigIA; conversa: ConversaIA; entrada: En
 export type ResultadoIA =
   | { estado: 'ignorada'; motivo: string }
   | { estado: 'respondida' | 'encaminhada' }
+  | { estado: 'aguardando'; motivo: string }
   | { estado: 'falhou'; motivo: string }
 
 export interface ItemHistorico { deCliente: boolean; texto: string | null; tipo: string }
@@ -80,7 +83,7 @@ export interface DepsIA {
   equipeAtendendo(contatoId: string, horas: number): Promise<boolean>
   /** true só na primeira vez: é a trava de resposta em dobro. */
   reservar(mensagemId: string, contatoId: string): Promise<boolean>
-  finalizar(mensagemId: string, estado: 'respondida' | 'encaminhada' | 'ignorada' | 'falhou', motivo: string | null): Promise<void>
+  finalizar(mensagemId: string, estado: 'respondida' | 'encaminhada' | 'ignorada' | 'falhou' | 'aguardando', motivo: string | null): Promise<void>
   /** Chegou mensagem do cliente depois desta? Então esta não é respondida: a mais nova cuida disso. */
   temMensagemMaisNova(contatoId: string, mensagemId: string): Promise<boolean>
   historico(contatoId: string, limite: number): Promise<ItemHistorico[]>
@@ -88,7 +91,7 @@ export interface DepsIA {
   conversar(pedido: PedidoLLM): Promise<RespostaLLM>
   servicos(): Promise<Servico[]>
   horarios(dia: string, duracaoMinutos: number): Promise<string[]>
-  encaminhar(contatoId: string, resumo: string): Promise<void>
+  encaminhar(contatoId: string, resumo: string, motivo?: string): Promise<void>
   /** O cliente pediu (ou parece ter pedido) para parar: calar a IA na conversa, avisar a equipe e, se for pedido claro, revogar o marketing. */
   pararDeFalar(contatoId: string, nivel: Exclude<NivelOptOut, 'nenhum'>): Promise<void>
   /** Envia e grava a mensagem como `agente`. Lança se não saiu: nunca reenviar. */
@@ -177,14 +180,17 @@ async function executar(deps: Pick<DepsIA, 'servicos' | 'horarios' | 'encaminhar
 // ---------- o caminho completo ----------
 
 export async function responderComIA(deps: DepsIA, entrada: EntradaIA): Promise<ResultadoIA> {
+  const iniciado=Date.now()
   const config = await deps.lerConfig()
   const conversa = config ? await deps.lerConversa(entrada.contatoId) : null
   if (!config || !conversa) return { estado: 'ignorada', motivo: 'sem_configuracao' }
   // `aposEncaminhar`: chamar a equipe desliga a IA na conversa, mas a frase de despedida ainda precisa sair.
   // Só a trava "IA ligada nesta conversa" é dispensada; todas as outras continuam valendo.
   const avaliar = async (aposEncaminhar = false) => {
-    const atual = (await deps.lerConversa(entrada.contatoId)) ?? conversa
-    return decidir({ config, conversa: aposEncaminhar ? { ...atual, iaLigada: true } : atual, entrada, equipeAtendendo: await deps.equipeAtendendo(entrada.contatoId, horasDeSilencio(config)) })
+    const atual = await deps.lerConversa(entrada.contatoId)
+    const cfg = await deps.lerConfig()
+    if (!atual || !cfg) return { responder: false as const, motivo: 'sem_configuracao' }
+    return decidir({ config: cfg, conversa: aposEncaminhar ? { ...atual, iaLigada: true } : atual, entrada, equipeAtendendo: await deps.equipeAtendendo(entrada.contatoId, horasDeSilencio(config)) })
   }
 
   const inicial = await avaliar()
@@ -201,6 +207,15 @@ export async function responderComIA(deps: DepsIA, entrada: EntradaIA): Promise<
     if (optout !== 'nenhum') {
       try { await deps.pararDeFalar(entrada.contatoId, optout) } catch { return await fim({ estado: 'falhou', motivo: 'erro_ao_registrar_pedido_para_parar' }) }
       return await fim({ estado: 'ignorada', motivo: optout === 'pedido' ? 'pediu_para_parar' : 'possivel_pedido_para_parar' })
+    }
+    const direto = passagemDireta(entrada.texto ?? '')
+    if (direto) {
+      await deps.encaminhar(entrada.contatoId, `Motivo: ${direto}. Pedido do cliente: ${(entrada.texto ?? '').slice(0,350)}. Próximo passo: atendimento humano.`, direto)
+      const gate=await avaliar(true)
+      if (!gate.responder) return await fim({estado:'ignorada',motivo:gate.motivo})
+      if (await deps.temMensagemMaisNova(entrada.contatoId,entrada.mensagemId)) return await fim({estado:'encaminhada'})
+      await deps.enviar(entrada.contatoId,entrada.telefone,AVISO_EQUIPE)
+      return await fim({estado:'encaminhada'})
     }
     // Rajada: quem escreve em pedaços é respondido uma vez só, pela última mensagem.
     if (config.esperaSegundos > 0) await deps.esperar(config.esperaSegundos * 1000)
@@ -225,22 +240,37 @@ export async function responderComIA(deps: DepsIA, entrada: EntradaIA): Promise<
         const out = await executar(deps, entrada.contatoId, c.nome, c.argumentos)
         if (out.encaminhou) encaminhou = true
         mensagens.push({ papel: 'ferramenta', conteudo: out.texto, chamadaId: c.id })
+        if (encaminhou) break
+      }
+      if (encaminhou) { texto=AVISO_EQUIPE; break }
+    }
+    if (!encaminhou) {
+      const precos=(await deps.servicos()).flatMap(s=>s.preco_a_partir_de===null?[]:[Number(s.preco_a_partir_de)])
+      const bloqueio=verificarResposta(texto,precos)
+      if (bloqueio) {
+        await deps.encaminhar(entrada.contatoId,`Resposta bloqueada: ${bloqueio}. Nenhum texto bloqueado foi enviado. Próximo passo: conferir a conversa e responder.`,bloqueio)
+        encaminhou=true; texto=AVISO_EQUIPE
       }
     }
     const partes = prepararResposta(texto)
     if (!partes.length) return await fim(encaminhou ? { estado: 'encaminhada' } : { estado: 'falhou', motivo: 'resposta_vazia' })
 
+    await deps.esperar(esperaProporcional(partes.join(' '),Date.now()-iniciado))
     // Última conferência antes de falar: a equipe pode ter assumido enquanto o modelo pensava.
     const ultima = await avaliar(encaminhou)
     if (!ultima.responder) return await fim({ estado: 'ignorada', motivo: ultima.motivo })
 
     for (let i = 0; i < partes.length; i++) {
       if (i > 0) await deps.esperar(1200)
+      const gate=await avaliar(encaminhou)
+      if (!gate.responder) return await fim({estado:'ignorada',motivo:gate.motivo})
+      if (await deps.temMensagemMaisNova(entrada.contatoId,entrada.mensagemId)) return await fim({estado:'ignorada',motivo:'mensagem_mais_nova'})
       try { await deps.enviar(entrada.contatoId, entrada.telefone, partes[i]) }
       catch { return await fim({ estado: 'falhou', motivo: 'envio_falhou' }) } // pode ter saído: nunca reenviar
     }
     return await fim({ estado: encaminhou ? 'encaminhada' : 'respondida' })
   } catch (e) {
+    if (e instanceof ErroConsumo) return await fim({estado:'aguardando',motivo:e.motivo})
     console.error('assistente: falha', e instanceof Error ? e.message.slice(0, 120) : 'erro')
     return await fim({ estado: 'falhou', motivo: 'erro_interno' })
   }
@@ -256,7 +286,7 @@ export async function responderComIA(deps: DepsIA, entrada: EntradaIA): Promise<
 export type DepsRascunho = Pick<DepsIA, 'agora' | 'lerConfig' | 'historico' | 'contexto' | 'conversar' | 'servicos' | 'horarios'>
 export type ResultadoRascunho =
   | { ok: true; texto: string }
-  | { ok: false; motivo: 'sem_configuracao' | 'sem_conversa' | 'sem_resposta' | 'falha_no_modelo' }
+  | { ok: false; motivo: 'sem_configuracao' | 'sem_conversa' | 'sem_resposta' | 'falha_no_modelo' | 'resposta_bloqueada' | 'limite_de_gasto' }
 
 const PEDIDO_DE_RASCUNHO = '(Escreva agora o rascunho da próxima mensagem da equipe para este cliente.)'
 const SECAO_DO_RASCUNHO = `
@@ -288,8 +318,11 @@ export async function gerarRascunho(deps: DepsRascunho, contatoId: string): Prom
       }
     }
     const partes = prepararResposta(texto)
+    const precos=(await deps.servicos()).flatMap(s=>s.preco_a_partir_de===null?[]:[Number(s.preco_a_partir_de)])
+    if (verificarResposta(texto,precos)) return {ok:false,motivo:'resposta_bloqueada'}
     return partes.length ? { ok: true, texto: partes.join('\n\n') } : { ok: false, motivo: 'sem_resposta' }
   } catch (e) {
+    if (e instanceof ErroConsumo) return {ok:false,motivo:'limite_de_gasto'}
     console.error('rascunho: falha', e instanceof Error ? e.message.slice(0, 120) : 'erro')
     return { ok: false, motivo: 'falha_no_modelo' }
   }

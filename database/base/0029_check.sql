@@ -1,0 +1,23 @@
+DO $$ DECLARE g uuid:=gen_random_uuid();u uuid:=gen_random_uuid();c uuid;s uuid;t uuid;v uuid;antiga uuid;b jsonb; BEGIN
+ INSERT INTO auth.users(id) VALUES(g),(u);UPDATE public.usuarios SET papel='gestor' WHERE id=g;UPDATE public.usuarios SET papel='consultor' WHERE id=u;
+ INSERT INTO public.contatos_dados(whatsapp) VALUES('5511999900291') RETURNING id INTO c;
+ PERFORM set_config('request.jwt.claim.sub',u::text,true);SET LOCAL ROLE authenticated;
+ BEGIN PERFORM public.assistente_melhoria_criar('Proposta',c,'Correção observada','Novas instruções');RAISE EXCEPTION 'FAIL: consultor propõe';EXCEPTION WHEN insufficient_privilege THEN NULL;END;RESET ROLE;
+ PERFORM set_config('request.jwt.claim.sub',g::text,true);SET LOCAL ROLE authenticated;
+ s:=public.assistente_melhoria_criar('Proposta',c,'Correção observada','Novas instruções');
+ BEGIN PERFORM public.assistente_melhoria_aprovar(s,gen_random_uuid());RAISE EXCEPTION 'FAIL: aprovou sem teste';EXCEPTION WHEN invalid_parameter_value THEN NULL;END;RESET ROLE;
+ SET LOCAL ROLE service_role;b:=public.assistente_melhoria_base();antiga:=(b->>'versao')::uuid;
+ t:=public.assistente_melhoria_testar(s,b,'Novas instruções','{"base":"Resposta A","candidato":"Resposta B"}',true);RESET ROLE;
+ UPDATE public.assistente_config SET nome='Outro nome';SET LOCAL ROLE authenticated;
+ BEGIN PERFORM public.assistente_melhoria_aprovar(s,t);RAISE EXCEPTION 'FAIL: teste antigo';EXCEPTION WHEN invalid_parameter_value THEN NULL;END;RESET ROLE;
+ SET LOCAL ROLE service_role;b:=public.assistente_melhoria_base();t:=public.assistente_melhoria_testar(s,b,'Novas instruções','{}',true);RESET ROLE;
+ SET LOCAL ROLE authenticated;v:=public.assistente_melhoria_aprovar(s,t);PERFORM public.assistente_melhoria_reverter(antiga,v);RESET ROLE;
+ BEGIN UPDATE public.assistente_melhoria_versoes SET conteudo='Alteração sem histórico' WHERE id=v;RAISE EXCEPTION 'FAIL: versão mutável';EXCEPTION WHEN insufficient_privilege THEN NULL;END;
+ BEGIN UPDATE public.assistente_melhoria_testes SET apto=false WHERE id=t;RAISE EXCEPTION 'FAIL: teste mutável';EXCEPTION WHEN insufficient_privilege THEN NULL;END;
+ SET LOCAL ROLE authenticated;s:=public.assistente_melhoria_criar('Rejeitada',c,'Correção observada','Instrução rejeitada');PERFORM public.assistente_melhoria_rejeitar(s);RESET ROLE;
+ IF NOT EXISTS(SELECT 1 FROM public.assistente_melhorias WHERE id=s AND estado='rejeitada') THEN RAISE EXCEPTION 'FAIL: rejeição';END IF;
+ IF NOT EXISTS(SELECT 1 FROM public.assistente_melhoria_versoes v JOIN public.assistente_melhoria_controle k ON k.versao_id=v.id WHERE v.conteudo='') THEN RAISE EXCEPTION 'FAIL: restauração';END IF;
+ PERFORM set_config('request.jwt.claim.sub',u::text,true);SET LOCAL ROLE authenticated;
+ IF EXISTS(SELECT 1 FROM public.assistente_melhorias) THEN RAISE EXCEPTION 'FAIL: consultor lê revisão';END IF;
+ BEGIN PERFORM public.assistente_melhoria_testar(s,b,'Novas instruções','{}',true);RAISE EXCEPTION 'FAIL: navegador falsifica teste';EXCEPTION WHEN insufficient_privilege THEN NULL;END;RESET ROLE;
+END $$;

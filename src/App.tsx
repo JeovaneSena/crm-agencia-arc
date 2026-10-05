@@ -25,6 +25,8 @@ import Avisos from './pages/Avisos'
 import Tarefas from './pages/Tarefas'
 import Radar from './pages/Radar'
 import Automacoes from './pages/Automacoes'
+import Casos from './pages/Casos'
+import MelhoriasAssistente from './pages/MelhoriasAssistente'
 import Captacao from './pages/Captacao'
 import { moduloAtivo } from './lib/modulos'
 
@@ -46,6 +48,7 @@ export default function App() {
             {moduloAtivo('campanhas') && <Route path="/campanhas/nova" element={<NovaCampanha />} />}
             {moduloAtivo('campanhas') && <Route path="/campanhas/:id/editar" element={<NovaCampanha />} />}
             {moduloAtivo('campanhas') && <Route path="/campanhas/:id" element={<CampanhaDetalhe />} />}
+            {moduloAtivo('casos') && <Route path="/casos" element={<Casos />} />}
             <Route path="/agenda" element={<Agenda />} />
             <Route path="/radar" element={<Radar />} />
             <Route path="/tarefas" element={<Tarefas />} />
@@ -58,6 +61,7 @@ export default function App() {
             {/* Só gestor. Consultor que chegar pela URL volta ao Dashboard —
                 e, se chegasse, o banco recusaria cada ação do mesmo jeito. */}
             <Route element={<RotaDeGestor />}>
+              {moduloAtivo('melhorias') && <Route path="/melhorias-assistente" element={<MelhoriasAssistente />} />}
               <Route path="/usuarios" element={<Usuarios />} />
               {moduloAtivo('assistente') && <Route path="/assistente-ia" element={<Assistente />} />}
               {moduloAtivo('conversas') && <Route path="/automacoes" element={<Automacoes />} />}

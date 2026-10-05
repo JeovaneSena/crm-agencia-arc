@@ -16,3 +16,10 @@ Para um roteiro iniciante, com pré-requisitos e contas necessárias, veja [COME
 Para lembretes e follow-up, consulte [Automações](AUTOMACOES.md). Em atualizações, aplique a migração 0024 antes de publicar os novos webhooks whatsapp/campanhas. Configure o worker somente na instalação derivada.
 
 Para captação e origem, consulte [Captação](MODULO_CAPTACAO.md). Aplique 0025 e 0026 antes dos webhooks. O módulo `captacao` pode ser instalado com o núcleo; referências exigem conversas, e origem de anúncios Meta exige campanhas.
+
+Para assistente seguro, aplique 0027 antes do webhook atualizado, cadastre tarifas e teto
+no painel e mantenha o vigia agendado. `casos` acrescenta 0028; `melhorias` acrescenta
+0029 e a Edge Function `melhorias`. Aplique as migrações selecionadas antes das funções
+e do frontend. Os dois módulos exigem conversas e assistente, mas são independentes
+entre si. Veja [Casos e melhorias](CASOS_E_MELHORIAS.md) e o
+[aceite da fase 5](ACEITE_FASE_5.md).

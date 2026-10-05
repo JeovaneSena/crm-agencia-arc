@@ -174,10 +174,10 @@ Deno.test('chamar a equipe: encaminha, desliga a IA na conversa e AINDA envia a 
   assert(f.enviados.length === 1 && f.enviados[0].includes('equipe'), 'a despedida não saiu')
 })
 
-Deno.test('chamar a equipe sem texto depois: encaminhada, sem enviar nada', async () => {
+Deno.test('chamar a equipe usa despedida fixa sem uma segunda chamada ao modelo', async () => {
   const f = falso({ respostas: [{ texto: '', chamadas: [{ id: 't1', nome: 'chamar_equipe', argumentos: {} }] }, { texto: '', chamadas: [] }] })
   const r = await responderComIA(f.deps, ENTRADA)
-  assert(r.estado === 'encaminhada' && f.enviados.length === 0 && f.encaminhados[0].length > 0)
+  assert(r.estado === 'encaminhada' && f.enviados.length === 1 && f.encaminhados[0].length > 0 && f.pedidos.length===1)
 })
 
 Deno.test('falhas: envio recusado, modelo fora e histórico sem pergunta viram falhou, sem reenvio', async () => {
@@ -269,4 +269,32 @@ Deno.test('rascunho: sem conversa, sem configuração, modelo fora e resposta va
   assert(JSON.stringify(await gerarRascunho(semConfig.deps, 'c1')) === JSON.stringify({ ok: false, motivo: 'sem_configuracao' }))
   assert(JSON.stringify(await gerarRascunho(falso({ falhaModelo: true }).deps, 'c1')) === JSON.stringify({ ok: false, motivo: 'falha_no_modelo' }))
   assert(JSON.stringify(await gerarRascunho(falso({ respostas: [{ texto: '   ', chamadas: [] }] }).deps, 'c1')) === JSON.stringify({ ok: false, motivo: 'sem_resposta' }))
+})
+
+Deno.test('pedido de pessoa/jurídico não custa modelo e usa aviso fixo',async()=>{
+ for(const texto of ['Quero falar com uma pessoa','Vou ao Procon']){
+  const f=falso()
+  const r=await responderComIA(f.deps,{...ENTRADA,texto})
+  assert(r.estado==='encaminhada'&&f.pedidos.length===0&&f.encaminhados.length===1&&f.enviados.length===1)
+ }
+})
+Deno.test('preço inventado e promessa sem passagem são bloqueados antes de enviar',async()=>{
+ for(const texto of ['Custa R$ 999,00.','A equipe vai ligar para você.','Erro 403: service_role']){
+  const f=falso({respostas:[{texto,chamadas:[]}]})
+  const r=await responderComIA(f.deps,ENTRADA)
+  assert(r.estado==='encaminhada'&&f.enviados.length===1&&!f.enviados[0].includes(texto)&&f.encaminhados.length===1)
+ }
+})
+Deno.test('configuração desligada entre bolhas interrompe as próximas',async()=>{
+ const f=falso({respostas:[{texto:'Olá.\n\nPodemos ajudar.\n\nQual serviço você procura?',chamadas:[]}]})
+ const enviar=f.deps.enviar
+ f.deps.enviar=async(c,t,txt)=>{await enviar(c,t,txt);f.deps.lerConfig=()=>Promise.resolve({...CONFIG,modo:'desligada'})}
+ const r=await responderComIA(f.deps,ENTRADA)
+ assert(r.estado==='ignorada'&&f.enviados.length===1)
+})
+Deno.test('espera por saldo é persistida, sem enviar nem repetir no mesmo turno',async()=>{
+ const {ErroConsumo}=await import('./consumo_ia.ts')
+ const f=falso();f.deps.conversar=()=>Promise.reject(new ErroConsumo('sem_saldo'))
+ const r=await responderComIA(f.deps,ENTRADA)
+ assert(r.estado==='aguardando'&&f.enviados.length===0&&f.finais[0].estado==='aguardando')
 })

@@ -1,3 +1,4 @@
+import { ErroProvedor } from './consumo_ia.ts'
 /**
  * Uma porta só para dois fornecedores de IA.
  *
@@ -56,6 +57,7 @@ export interface DefinicaoFerramenta {
 export interface RespostaLLM {
   texto: string
   chamadas: ChamadaFerramenta[]
+  uso?: { entrada: number; saida: number }
 }
 
 export interface PedidoLLM {
@@ -186,13 +188,19 @@ async function viaOpenAI(pedido: PedidoLLM): Promise<RespostaLLM> {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(corpo),
+    signal: AbortSignal.timeout(45000),
   })
-  if (!r.ok) throw new Error(`openai: ${r.status} ${await r.text()}`)
+  if (!r.ok) {
+    const erro=await r.json().catch(()=>({}))
+    const codigo=erro?.error?.code
+    throw new ErroProvedor(['insufficient_quota','organization_spend_limit_exceeded','project_spend_limit_exceeded','organization_usage_limit_exceeded'].includes(codigo))
+  }
 
   const dados = await r.json()
   const msg = dados?.choices?.[0]?.message ?? {}
 
   return {
+    uso: usoValido(dados?.usage?.prompt_tokens,dados?.usage?.completion_tokens),
     texto: typeof msg.content === 'string' ? msg.content : '',
     chamadas: (msg.tool_calls ?? []).map((c: { id: string; function: { name: string; arguments: string } }) => ({
       id: c.id,
@@ -253,10 +261,8 @@ async function viaAnthropic(pedido: PedidoLLM): Promise<RespostaLLM> {
     model: pedido.modelo,
     // Aqui é `max_tokens` mesmo: a Anthropic nunca renomeou o campo.
     max_tokens: pedido.maxTokens ?? teto(pedido.modelo),
-    // O prompt do sistema é grande e estável: os dados da clínica, os
-    // procedimentos e os dentistas se repetem em toda mensagem. Em cache, o
-    // trecho custa por volta de 10% a partir da segunda chamada.
-    system: [{ type: 'text', text: pedido.sistema, cache_control: { type: 'ephemeral' } }],
+    // Sem cache explícito: duas tarifas (entrada/saída) bastam para a medição desta fase.
+    system: [{ type: 'text', text: pedido.sistema }],
     messages: mensagens,
     // Conversa de WhatsApp é curta e o paciente está esperando. Esforço baixo
     // responde mais rápido e mais barato, sem perda visível aqui.
@@ -278,13 +284,21 @@ async function viaAnthropic(pedido: PedidoLLM): Promise<RespostaLLM> {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(corpo),
+    signal: AbortSignal.timeout(45000),
   })
-  if (!r.ok) throw new Error(`anthropic: ${r.status} ${await r.text()}`)
+  if (!r.ok) {
+    const erro=await r.json().catch(()=>({}))
+    const saldo=r.status===402 || erro?.error?.type==='billing_error'
+      || erro?.error?.details?.error_code==='enforced_spend_limit_reached'
+      || r.status===400 && /credit balance|insufficient credits|^You have reached your specified (workspace )?API usage limits/i.test(String(erro?.error?.message))
+    throw new ErroProvedor(saldo)
+  }
 
   const dados = await r.json()
   const blocos: Record<string, unknown>[] = dados?.content ?? []
 
   return {
+    uso: usoValido(dados?.usage?.input_tokens,dados?.usage?.output_tokens),
     texto: blocos
       .filter((b) => b.type === 'text')
       .map((b) => (b as { text: string }).text)
@@ -467,4 +481,8 @@ function comoObjeto(bruto: string): Record<string, unknown> {
   } catch {
     return {}
   }
+}
+
+function usoValido(entrada: unknown,saida: unknown): {entrada:number;saida:number} | undefined {
+ return Number.isSafeInteger(entrada)&&Number(entrada)>=0&&Number.isSafeInteger(saida)&&Number(saida)>=0?{entrada:Number(entrada),saida:Number(saida)}:undefined
 }

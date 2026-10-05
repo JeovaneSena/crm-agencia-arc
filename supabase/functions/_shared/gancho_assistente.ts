@@ -4,7 +4,9 @@
  * Aqui só a cola com o banco, o modelo e o WhatsApp; a lógica e as travas estão em `assistente.ts`.
  */
 import { atualizar, inserir, rpc, selecionar } from './db.ts'
-import { conversar } from './llm.ts'
+import { ErroConsumo, conversarComLimite } from './consumo_ia.ts'
+import { instrucoesAprovadas, vigiarCasos } from './extras_ia.ts'
+import { conversar, chavesDeIA } from './llm.ts'
 import { UAZAPI } from './uazapi.ts'
 import { abrirAviso } from './avisos.ts'
 import { gerarRascunho, responderComIA, type ConfigIA, type DepsIA } from './assistente.ts'
@@ -24,7 +26,7 @@ interface LinhaConfig {
 
 async function lerConfig(): Promise<ConfigIA | null> {
   const c = (await selecionar<LinhaConfig>('assistente_config?select=modo,nome,modelo,instrucoes,numeros_teste,max_respostas,espera_segundos,devolver_apos_minutos&limit=1'))[0]
-  return c ? { modo: c.modo, nome: c.nome, modelo: c.modelo, instrucoes: c.instrucoes, numerosTeste: c.numeros_teste, maxRespostas: c.max_respostas, esperaSegundos: c.espera_segundos, devolverAposMinutos: c.devolver_apos_minutos } : null
+  return c ? { modo: c.modo, nome: c.nome, modelo: c.modelo, instrucoes: [c.instrucoes, await instrucoesAprovadas()].filter(Boolean).join('\n\n') || null, numerosTeste: c.numeros_teste, maxRespostas: c.max_respostas, esperaSegundos: c.espera_segundos, devolverAposMinutos: c.devolver_apos_minutos } : null
 }
 
 /** Contato novo nasce com a IA ligada só no modo ao vivo (histórico e quem já falava com a equipe seguem desligados). */
@@ -35,7 +37,7 @@ export async function camposDoContatoNovo(): Promise<Record<string, unknown>> {
 
 const agoraIso = (h: number) => new Date(Date.now() - h * 3600_000).toISOString()
 
-function depsDoBanco(): DepsIA {
+export function depsDoBanco(): DepsIA {
   return {
     agora: () => new Date(),
     esperar: (ms) => new Promise((r) => setTimeout(r, ms)),
@@ -51,8 +53,7 @@ function depsDoBanco(): DepsIA {
       return m.length > 0
     },
     async reservar(mensagemId, contatoId) {
-      const linhas = await inserir<{ mensagem_id: string }>('assistente_respostas', { mensagem_id: mensagemId, contato_id: contatoId }, true, 'mensagem_id')
-      return linhas.length > 0
+      return await rpc<boolean>('assistente_resposta_reservar',{p_mensagem:mensagemId,p_contato:contatoId})
     },
     async finalizar(mensagemId, estado, motivo) {
       await atualizar('assistente_respostas', `mensagem_id=eq.${mensagemId}`, { estado, motivo, updated_at: new Date().toISOString() })
@@ -71,7 +72,7 @@ function depsDoBanco(): DepsIA {
       const c = (await selecionar<{ nome_negocio: string | null; fuso_horario: string | null }>('configuracoes_negocio?select=nome_negocio,fuso_horario&limit=1'))[0]
       return { negocio: c?.nome_negocio ?? '', fuso: c?.fuso_horario || 'America/Sao_Paulo' }
     },
-    conversar,
+    conversar: p => { const chaves=chavesDeIA(); if (!(p.modelo.startsWith('claude-')?chaves.anthropic:chaves.openai)) return Promise.reject(new ErroConsumo('chave_ausente')); return conversarComLimite(p,conversar,rpc) },
     servicos: () => selecionar(`catalogo_servicos?select=nome,descricao,preco_a_partir_de,duracao_minutos,exige_reuniao_previa&ativo=eq.true&arquivado=eq.false&e_reuniao_previa=eq.false&order=nome`),
     async horarios(dia, duracao) {
       const h = await rpc<string[] | { horario: string }[]>('agenda_horarios_disponiveis', { p_data: dia, p_duracao: duracao })
@@ -79,8 +80,8 @@ function depsDoBanco(): DepsIA {
       const hora = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: fuso })
       return h.map((x) => hora.format(new Date(typeof x === 'string' ? x : x.horario)))
     },
-    async encaminhar(contatoId, resumo) {
-      await atualizar('contatos_dados', `id=eq.${contatoId}`, { ia_ligada: false, ia_encaminhada_em: new Date().toISOString(), ia_encaminhada_motivo: 'equipe', ia_resumo: resumo.slice(0, 500) })
+    async encaminhar(contatoId, resumo, motivo) {
+      await rpc('assistente_encaminhar',{p_contato:contatoId,p_resumo:resumo.slice(0,500),p_motivo:motivo??null})
     },
     async pararDeFalar(contatoId, nivel) {
       const claro = nivel === 'pedido'
@@ -129,4 +130,14 @@ export async function aposReceber(m: MensagemGravada): Promise<void> {
   } catch (e) {
     console.error('assistente: erro', e instanceof Error ? e.message.slice(0, 120) : 'erro')
   }
+}
+
+/** O vigia retoma só espera por saldo/orçamento, nunca timeout ou envio incerto. */
+export async function manutencaoAssistente(): Promise<void> {
+ const pendentes=await rpc<{mensagem_id:string;contato_id:string;whatsapp:string;conteudo:string;tipo:string}[]>('assistente_pendentes',{})
+ for(const m of pendentes) {
+  const r=await responderComIA(depsDoBanco(),{mensagemId:m.mensagem_id,contatoId:m.contato_id,telefone:m.whatsapp,tipo:m.tipo,texto:m.conteudo})
+  if(r.estado==='ignorada') await atualizar('assistente_respostas',`mensagem_id=eq.${m.mensagem_id}&estado=eq.aguardando`,{estado:'ignorada',motivo:r.motivo})
+ }
+ await vigiarCasos()
 }

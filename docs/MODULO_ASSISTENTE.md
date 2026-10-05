@@ -28,7 +28,7 @@ modo ao vivo (`camposDoContatoNovo`).
    revoga o consentimento de marketing (se houver o módulo campanhas) e abre um aviso na Central. Pedido
    ambíguo ("me deixa em paz", "chega", "cancelar", "não tenho interesse", "isso é spam") só desliga a IA e
    avisa a equipe, que decide. Perguntas comuns com as mesmas palavras ("tem como parar a dor?") não contam.
-As travas 5 a 7 são reavaliadas ao receber, depois da espera e imediatamente antes de enviar.
+A configuração e as travas são relidas ao receber, depois da espera e antes de cada envio.
 Depois de `chamar_equipe` a trava "IA ligada na conversa" é dispensada só para enviar a
 frase de despedida; todas as outras seguem valendo.
 
@@ -47,7 +47,7 @@ Com prazo definido, a cada rodada do vigia (`conversas_devolver_ao_assistente`, 
 - Se a **última** mensagem da conversa é do cliente, é texto e tem até 24 h, o assistente a responde na hora (pelo
   mesmo caminho da mensagem recebida: todas as travas valem, inclusive o limite de respostas). Mais velha que isso,
   não: responder de repente parece engano.
-- **Nunca volta**: quem pediu para parar de receber mensagem (`ia_encaminhada_motivo = 'parar'`); conversa que alguém
+- **Nunca volta**: passagem protegida com motivo `humano` (pedido de pessoa, assunto jurídico, resposta bloqueada ou caso da fila); quem pediu para parar de receber mensagem (`ia_encaminhada_motivo = 'parar'`); conversa que alguém
   assumiu; conversa que a equipe desligou à mão; conversa adiada.
 - A trava 6 passa a usar o mesmo prazo, senão a conversa voltaria e a IA continuaria calada por até 12 h.
 - Conversas encaminhadas **antes** desta migração têm motivo vazio e não voltam sozinhas (não dá para saber se
@@ -69,7 +69,7 @@ vazia, para não apagar o que a pessoa já escreveu. Rota `POST /whatsapp/rascun
 ## Banco: volta automática (`database/base/0022_volta_ao_assistente.sql`)
 - `assistente_config.devolver_apos_minutos` (vazio = nunca) e `assistente_salvar_config` com o parâmetro novo
   `p_devolver_apos` (padrão vazio; a chamada antiga de 7 argumentos continua valendo e deixa o prazo vazio).
-- `contatos_dados.ia_encaminhada_motivo` (`equipe` ou `parar`), limpo por gatilho quando o encaminhamento é concluído.
+- `contatos_dados.ia_encaminhada_motivo` (`equipe`, `parar` ou `humano`, acrescentado pela 0027), limpo por gatilho quando o encaminhamento é concluído.
 - `conversa_eventos.tipo` ganha `voltou_ao_assistente`.
 - `conversas_devolver_ao_assistente(limite)`: só o servidor (vigia) chama; `skip locked` impede devolver a mesma
   conversa duas vezes em rodadas simultâneas.
@@ -81,7 +81,7 @@ nega; até 40 palavras; informal sem gíria; sem travessão, markdown, lista ou 
 
 ## Segredos da função (nunca em arquivo do repositório)
 `ANTHROPIC_API_KEY` (modelos `claude-…`) ou `OPENAI_API_KEY` (`gpt-…`), além dos do módulo
-conversas. Sem a chave, cada tentativa aparece na tela como "erro (confira a chave do modelo)".
+conversas. Sem a chave, a resposta aguarda configuração e não chama o modelo.
 
 ## Limites conhecidos
 - O que a equipe responde pelo celular o CRM não enxerga (vale para a trava 6 e para a volta automática): quem
@@ -89,9 +89,9 @@ conversas. Sem a chave, cada tentativa aparece na tela como "erro (confira a cha
 - O webhook ignora o que o próprio número envia (`fromMe`). Se alguém da equipe responder
   direto no celular, a IA **não** sabe; a trava de 12 h só enxerga o que sai pelo CRM. Use
   "Assumir conversa" ou desligue o assistente na conversa antes de falar pelo celular.
-- Não há fila de suporte, revisão assistida de melhorias nem token de API para agente
-  externo: as telas e libs herdadas dependiam de tabelas legadas e ficaram fora da base.
-  O encaminhamento daqui é simples: aviso na conversa + filtro "Equipe" na lista.
+- Fila de casos e revisão de melhorias são opcionais, com migrações próprias: veja
+  [Casos e melhorias](CASOS_E_MELHORIAS.md). Sem a fila, o encaminhamento abre um aviso e
+  aparece no filtro "Equipe". Não há token de API para agente externo.
 - Agendar pela IA não existe; só sugere horários livres (`agenda_horarios_disponiveis`).
 
 ## Testes
@@ -99,3 +99,49 @@ conversas. Sem a chave, cada tentativa aparece na tela como "erro (confira a cha
 simulada) · banco: `test:assistente:db:rehearsal` e `:apply` (projeto descartável com
 0001–0007) e, para a volta automática, `test:volta:db:rehearsal` e `:apply` (0022). A volta automática também é
 ensaiada localmente (`npm run test:db:local`) e coberta por `test:vigia`. Não exercitado ainda: banco real, modelo real, uazapi real.
+
+## Segurança e orçamento (migração 0027)
+
+Depois das travas de atendimento e opt-out, pedidos reconhecidos de falar com uma pessoa
+ou assuntos jurídicos encaminham diretamente, sem pagar uma chamada ao modelo. Antes de
+enviar uma resposta ou oferecer um rascunho, verificamos valores contra preços numéricos
+dos serviços, nomes internos de ferramentas/tabelas, erros técnicos, promessa de contato
+pela equipe e termos jurídicos. Resposta bloqueada encaminha; rascunho bloqueado retorna
+um motivo para a equipe. A frase de encaminhamento é fixa e só sai após a transação que
+desliga a IA, registra o resumo, abre o aviso e, se instalado, cria o caso. A espera
+proporcional soma até 7,5 segundos desde o início do processamento, além da espera de
+agrupamento de mensagens; nunca reduz o tempo já gasto.
+
+Em **Assistente → Orçamento da IA**, o gestor informa o teto mensal e as tarifas de
+entrada/saída do modelo em US$ por milhão de tokens. Sem tarifas não há chamadas. Antes
+de cada rodada, uma reserva conservadora de entrada/saída é registrada sob bloqueio da
+configuração. O saldo considera consumo medido, reservas e chamadas incertas; avisa em
+80% e recusa uma chamada que ultrapassaria 100%. O teto padrão é US$ 50; zero pausa.
+Assistente, rascunhos e comparações compartilham esse orçamento, contado por mês UTC.
+Tarifas são manuais e o custo calculado não substitui a fatura do provedor. Cache explícito
+Anthropic fica desligado neste adaptador. APIs de visão/transcrição não entram nesse teto.
+
+Erros explícitos de crédito, cobrança ou limite financeiro do provedor pausam chamadas
+até o gestor regularizar a conta e confirmar a recarga/liberação. Isso não compra crédito
+nem altera limites do provedor. Rate limit comum não é tratado como falta de saldo.
+Timeout, erro de rede e uso ausente conservam a reserva como custo incerto; reservas
+pendentes de mais de cinco minutos passam a incertas, sem devolver orçamento.
+
+Respostas bloqueadas por orçamento/configuração/saldo ficam `aguardando`. O vigia do
+WhatsApp verifica até três por rodada, somente após tarifa e saldo liberados, relendo
+travas e descartando mensagens substituídas. Pendências com mais de 24 h expiram. O
+agendador do vigia precisa estar instalado na derivada; sem ele não há retomada automática.
+
+Os detectores usam padrões determinísticos em português, não uma prova de ausência de
+alucinação. Valores numéricos são comparados ao conjunto do catálogo, sem garantir que
+pertencem ao serviço correto. Paráfrases, preços por extenso e temas jurídicos podem não
+ser reconhecidos. A equipe deve revisar rascunhos e comparações, e testar seu catálogo.
+
+Contratos de uso/erros consultados: [OpenAI](https://developers.openai.com/api/docs/guides/error-codes),
+[uso de tokens OpenAI](https://developers.openai.com/api/reference/cli/resources/chat/subresources/completions/methods/retrieve),
+[erros Anthropic](https://platform.claude.com/docs/en/api/errors) e
+[limites Anthropic](https://platform.claude.com/docs/en/api/rate-limits).
+
+Verificação adicional: `npm run test:seguranca:ia`, `test:seguranca:db:rehearsal` e
+`:apply` (0027), mais `npm run test:db:local`. Para aceite real, veja
+[ACEITE_FASE_5.md](ACEITE_FASE_5.md).

@@ -311,10 +311,11 @@ para landing page, origem do clique-para-WhatsApp (se as conversas tiverem a Met
 relatório por origem. É o que mostra ao cliente de tráfego pago quanto cada anúncio
 trouxe.
 
-**Fase 5 — Assistente mais seguro.** Passagem por frase, travas de preço, de
+**Fase 5 — Assistente mais seguro (IMPLEMENTADA LOCALMENTE; ACEITE REAL PENDENTE).** Passagem por frase, travas de preço, de
 vocabulário interno, de promessa da equipe e de assunto jurídico, teto mensal de gasto,
 espera de saldo, espera proporcional, e portar a fila de casos (0035) e a revisão com
-melhorias (0036) como opcionais.
+melhorias (0036) como opcionais. Implementação genérica nas migrações 0027–0029;
+evidências e roteiro remoto em [docs/ACEITE_FASE_5.md](docs/ACEITE_FASE_5.md).
 
 **Fase 6 — Nicho sem mexer no núcleo.** Campos personalizados, campos obrigatórios por
 etapa, motivos de perda editáveis, funis prontos por nicho no gerador e primeiro acesso

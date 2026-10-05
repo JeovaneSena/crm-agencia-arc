@@ -1,0 +1,21 @@
+DO $$ DECLARE g uuid:=gen_random_uuid();u uuid:=gen_random_uuid();c uuid;i uuid;i2 uuid; BEGIN
+ INSERT INTO auth.users(id) VALUES(g),(u);UPDATE public.usuarios SET papel='gestor' WHERE id=g;UPDATE public.usuarios SET papel='consultor' WHERE id=u;
+ INSERT INTO public.contatos_dados(whatsapp) VALUES('5511999900281') RETURNING id INTO c;
+ SET LOCAL ROLE service_role;
+ PERFORM public.assistente_encaminhar(c,'Cliente pediu uma pessoa. Próximo passo: responder.','pedido_pessoa');
+ SELECT id INTO i FROM public.assistente_casos WHERE contato_id=c AND estado='aguardando';
+ IF i IS NULL THEN RAISE EXCEPTION 'FAIL: passagem não abriu caso';END IF;
+ i2:=public.assistente_caso_abrir(c,'juridico','Assunto jurídico. Próximo passo: gestor revisar.');
+ IF i IS DISTINCT FROM i2 THEN RAISE EXCEPTION 'FAIL: caso duplicado';END IF;
+ RESET ROLE;PERFORM set_config('request.jwt.claim.sub',u::text,true);SET LOCAL ROLE authenticated;
+ PERFORM public.assistente_caso_assumir(i);RESET ROLE;
+ IF NOT EXISTS(SELECT 1 FROM public.assistente_casos WHERE id=i AND responsavel_id=u AND estado='em_atendimento') THEN RAISE EXCEPTION 'FAIL: assumir';END IF;
+ SET LOCAL ROLE authenticated;PERFORM public.assistente_caso_finalizar(i,'Resolvido pela equipe.','necessario');RESET ROLE;
+ SET LOCAL ROLE service_role;i2:=public.assistente_caso_abrir(c,'modelo','Nova dúvida após resolução.');RESET ROLE;
+ IF i=i2 THEN RAISE EXCEPTION 'FAIL: caso novo sobrescreve resolução';END IF;
+ UPDATE public.assistente_casos SET criado_em=now()-interval '3 hours' WHERE id=i2;
+ SET LOCAL ROLE service_role;
+ IF public.assistente_casos_vigiar()<>1 THEN RAISE EXCEPTION 'FAIL: vigia caso';END IF;RESET ROLE;
+ PERFORM set_config('request.jwt.claim.sub',u::text,true);UPDATE public.usuarios SET ativo=false WHERE id=u;SET LOCAL ROLE authenticated;
+ IF EXISTS(SELECT 1 FROM public.assistente_casos) THEN RAISE EXCEPTION 'FAIL: inativo lê casos';END IF;RESET ROLE;
+END $$;
