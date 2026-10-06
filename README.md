@@ -4,6 +4,8 @@ Base mestre para criar um CRM isolado por cliente. Cada instalação tem seu pr�
 
 > **Estado:** base em validação. O código e as migrações passaram em ensaio local, mas ainda faltam duas instalações vazias em projetos Supabase distintos e os testes reais das integrações antes de declarar a base pronta para produção.
 
+Veja o [registro de validação de 06/10/2026](docs/VALIDACAO_2026_10_06.md): 40 migrações, 161 testes de funções, interface de gestão, build e lint aprovados localmente. Os testes reais de Supabase, integrações e restauração continuam pendentes; o projeto de teste anterior está inacessível.
+
 ## Gerar uma instalação
 
 Pré-requisitos (detalhes em [docs/COMECANDO.md](docs/COMECANDO.md)): Node.js 22+, npm, Git e uma conta no Supabase. Para publicar o site, uma hospedagem e um domínio; para WhatsApp, IA e campanhas, as contas de cada integração.
